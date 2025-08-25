@@ -1,4 +1,4 @@
-// netlify/functions/extract.js (CommonJS, versione con REGEX + fallback LLM)
+// netlify/functions/extract.js (CommonJS, NO estrazione ULA)
 const { Buffer } = require("node:buffer");
 const Busboy = require("busboy");
 const pdf = require("pdf-parse");
@@ -34,48 +34,27 @@ async function parseMultipart(event) {
   });
 }
 
-/** Estrattori REGEX per visure italiane */
-function extractWithRegex(rawText, kind) {
+/** Estrattori REGEX (senza ULA) */
+function extractWithRegex(rawText) {
   const text = (rawText || "").replace(/\r/g, "");
-  const out = { ragioneSociale: "", codiceFiscale: "", attivo: 0, fatturato: 0, ula: 0 };
+  const out = { ragioneSociale: "", codiceFiscale: "", attivo: 0, fatturato: 0 };
 
-  // 1) Ragione sociale
-  // - linee che contengono "SOCIETA" o "S.R.L." o "SRL" o "SPA" in maiuscolo
-  // - oppure "Denominazione: ..."
+  // Ragione sociale
   const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
   let den =
     (text.match(/Denominazione:\s*(.+)/i)?.[1] ?? "")
     || lines.find(l => /SOCIET[AÀ]'?|\bS\.?R\.?L\.?\b|\bSRLS?\b|\bS\.?P\.?A\.?\b/i.test(l))
     || "";
-  if (den) {
-    // pulizia spazi multipli
-    den = den.replace(/\s{2,}/g, " ").trim();
-    out.ragioneSociale = den;
-  }
+  if (den) out.ragioneSociale = den.replace(/\s{2,}/g, " ").trim();
 
-  // 2) Codice fiscale (società: 11 cifre) – priorità a "Codice fiscale ..." o "Partita IVA ..."
+  // Codice fiscale (11 cifre) / Partita IVA
   const cfMatch =
     text.match(/Codice\s*fiscale[^0-9]*([0-9]{11})/i) ||
     text.match(/Partita\s*IVA[^0-9]*([0-9]{11})/i) ||
     text.match(/\b([0-9]{11})\b/);
   if (cfMatch) out.codiceFiscale = cfMatch[1];
 
-  // 3) Addetti -> ULA (visure spesso riportano "Addetti 8" oppure tabelle con "Totale 8")
-  // Proviamo prima "Addetti ... <numero>" su una sola riga
-  const addettiDirect = text.match(/Addetti(?:\s+al[^\n]*)?\s+(\d{1,5})\b/i);
-  if (addettiDirect) {
-    out.ula = parseInt(addettiDirect[1], 10) || 0;
-  } else {
-    // fallback: cerca "Totale 8" in sezioni Addetti
-    const addettiBlock = text.split(/Addetti[\s\S]*?\n/i)[1] || "";
-    const totInBlock = addettiBlock.match(/\bTotale\s+(\d{1,5})\b/i);
-    if (totInBlock) out.ula = parseInt(totInBlock[1], 10) || 0;
-  }
-
-  // 4) Fatturato e Attivo: in visura spesso NON presenti -> lascio 0; il bilancio/popola più avanti.
-  // Se troviamo valori tipo "Capitale sociale" NON li confondiamo con attivo/fatturato.
-
-  // Se è una visura esplicita, non forziamo LLM per attivo/fatturato (tipicamente assenti).
+  // Attivo / Fatturato: spesso non in visura; li lasciamo 0 e li riempie l'LLM se trova nei bilanci
   return out;
 }
 
@@ -83,21 +62,21 @@ async function callOpenAIForJSON({ text, hint }) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY non configurata");
 
-  const snippet = (text || "").slice(0, 18000); // riduco un po'
+  const snippet = (text || "").slice(0, 18000);
 
-  const system = "Estrai in JSON i campi aziendali da visure o bilanci italiani. Se un campo non è presente, metti 0 o stringa vuota.";
+  const system = "Estrai in JSON i campi aziendali da visure o bilanci italiani. Se un campo non è presente, metti 0 o stringa vuota. NON inventare l'ULA.";
   const user = `Testo (${hint}):
 """${snippet}"""
 
 Ritorna SOLO JSON con chiavi esatte:
-{"ragioneSociale":"","codiceFiscale":"","attivo":0,"fatturato":0,"ula":0}`;
+{"ragioneSociale":"","codiceFiscale":"","attivo":0,"fatturato":0}`;
 
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: "gpt-4o-mini",
-      response_format: { type: "json_object" }, // forza JSON
+      response_format: { type: "json_object" },
       messages: [{ role: "system", content: system }, { role: "user", content: user }],
       temperature: 0
     })
@@ -109,17 +88,13 @@ Ritorna SOLO JSON con chiavi esatte:
   }
   const data = await res.json();
   const content = data?.choices?.[0]?.message?.content || "{}";
-  try { return JSON.parse(content); } catch { return { ragioneSociale:"", codiceFiscale:"", attivo:0, fatturato:0, ula:0 }; }
+  try { return JSON.parse(content); } catch { return { ragioneSociale:"", codiceFiscale:"", attivo:0, fatturato:0 }; }
 }
 
 function toNum(v) {
   if (v == null) return 0;
   const s = String(v).replace(/[€\s]/g, "").replace(/\./g, "").replace(",", ".");
   const n = parseFloat(s);
-  return Number.isFinite(n) ? n : 0;
-}
-function toInt(v) {
-  const n = parseInt(String(v).replace(/[^\d-]/g, ""), 10);
   return Number.isFinite(n) ? n : 0;
 }
 
@@ -136,34 +111,31 @@ exports.handler = async (event) => {
     const text = pdfData.text || "";
     if (!text.trim()) return { statusCode: 422, body: "PDF senza testo. Serve OCR (scannerizzato)." };
 
-    // 1) Regex first
-    let out = extractWithRegex(text, kind);
+    // 1) Regex base
+    let out = extractWithRegex(text);
 
-    // 2) Se mancano ragione/CF e hai voglia di far tentare il modello, fallo qui:
-    if ((!out.ragioneSociale || !out.codiceFiscale) || (kind !== "visura" && (out.attivo === 0 && out.fatturato === 0))) {
+    // 2) Completa buchi con LLM (senza ULA)
+    if (!out.ragioneSociale || !out.codiceFiscale || (out.attivo === 0 && out.fatturato === 0)) {
       try {
         const ai = await callOpenAIForJSON({ text, hint: kind });
-        // Merge: tieni ciò che hai già e completa i buchi
         out = {
           ragioneSociale: out.ragioneSociale || (ai.ragioneSociale || ""),
           codiceFiscale: out.codiceFiscale || (ai.codiceFiscale || ""),
           attivo: out.attivo || toNum(ai.attivo),
-          fatturato: out.fatturato || toNum(ai.fatturato),
-          ula: out.ula || toInt(ai.ula),
+          fatturato: out.fatturato || toNum(ai.fatturato)
         };
       } catch (e) {
-        // Se l'AI fallisce, prosegui con i soli dati regex
         console.warn("Fallback LLM non disponibile:", e.message);
       }
     }
 
-    // Sanitizza finale
+    // ULA sempre 0: deve essere inserita manualmente nel frontend
     const result = {
       ragioneSociale: (out.ragioneSociale || "").toString().trim(),
       codiceFiscale: (out.codiceFiscale || "").toString().trim(),
       attivo: toNum(out.attivo),
       fatturato: toNum(out.fatturato),
-      ula: toInt(out.ula),
+      ula: 0
     };
 
     return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: JSON.stringify(result) };

@@ -6,17 +6,19 @@
   <title>Calcola la Dimensione D’Impresa</title>
   <!-- jsPDF per il report -->
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <!-- Favicon emoji 🏢 -->
+  <link rel="icon" href='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏢</text></svg>'>
   <style>
     :root{
-      --bg:#f7f9fb;         /* soft business-like palette */
+      --bg:#f7f9fb;
       --card:#ffffff;
-      --ink:#1f2937;        /* gray-800 */
-      --muted:#6b7280;      /* gray-500 */
-      --line:#e5e7eb;       /* gray-200 */
-      --ok:#16a34a;         /* green-600 */
-      --warn:#f59e0b;       /* amber-500 */
-      --alert:#f97316;      /* orange-500 */
-      --brand:#0ea5e9;      /* sky-500 */
+      --ink:#1f2937;
+      --muted:#6b7280;
+      --line:#e5e7eb;
+      --ok:#16a34a;
+      --warn:#f59e0b;
+      --alert:#f97316;
+      --brand:#0ea5e9;
     }
     *{box-sizing:border-box}
     body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,'Helvetica Neue',Arial}
@@ -31,13 +33,13 @@
     input[type="text"],input[type="number"],input[type="file"],select{width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink)}
     input[type="number"]{appearance:textfield}
     .inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-    .info{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--line);color:var(--muted);font-size:12px;font-weight:700;cursor:help}
     .actions{display:flex;gap:10px;flex-wrap:wrap}
     button{border:1px solid var(--line);background:var(--brand);color:white;padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:700}
     button.secondary{background:#fff;color:var(--ink)}
     button.ghost{background:transparent;border-color:var(--line);color:var(--ink)}
     button:disabled{opacity:.5;cursor:not-allowed}
     .tiny{font-size:12px;color:var(--muted)}
+    .muted{color:var(--muted)}
     /* Tabella riepilogo */
     .table-wrap{border:1px solid var(--line);border-radius:12px;overflow-x:auto;background:#fff}
     table{width:100%;border-collapse:collapse;min-width:640px}
@@ -51,9 +53,6 @@
     .section-title{font-size:18px;margin:0 0 8px}
     .divider{height:1px;background:var(--line);margin:12px 0}
     .list{display:flex;flex-direction:column;gap:12px}
-    .muted{color:var(--muted)}
-    .emoji{font-size:20px;margin-right:6px}
-    .radio-group{display:flex;gap:16px;align-items:center}
     .kicker{font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-size:12px}
     .grid-3{display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px}
     @media (max-width:700px){.grid-3{grid-template-columns:1fr}}
@@ -98,8 +97,11 @@
           <input id="main_fatturato" type="number" min="0" step="0.01" placeholder="0" />
         </div>
         <div>
-          <label>ULA <span class="info" title="Unità Lavorative Annue (media occupati annui equivalenti a tempo pieno)">i</span></label>
+          <label>ULA</label>
           <input id="main_ula" type="number" min="0" step="1" placeholder="0" />
+          <p class="tiny muted" style="margin-top:6px">
+            <strong>Cos’è l’ULA</strong>: Unità Lavorative Annue = numero medio di occupati equivalenti a tempo pieno nell’anno (inclusi part‑time pro‑quota).
+          </p>
         </div>
       </div>
 
@@ -109,7 +111,7 @@
         <div>
           <label>Carica visura (PDF)</label>
           <input id="file_visura" type="file" accept="application/pdf" />
-          <p class="tiny" id="pdf_hint">Carica il PDF per l’auto‑compilazione (richiede testo nel PDF, non immagine).</p>
+          <p class="tiny" id="pdf_hint">Auto‑compila Ragione sociale, Codice fiscale e, se presente nel documento, Totale attivo / Fatturato. L’ULA va sempre inserito a mano.</p>
         </div>
         <div>
           <label>Carica bilancio (PDF)</label>
@@ -130,13 +132,13 @@
             <label class="inline"><input type="radio" name="has_collegate" value="no" checked> No</label>
             <label class="inline"><input type="radio" name="has_collegate" value="si"> Sì</label>
           </div>
-          <span class="info" title="Società collegate: possesso diretto/indiretto di controllo (>50% capitale o voti) o controllo congiunto da persone in accordo; stesso mercato (primi 2 digit ATECO) o fatturazioni reciproche ≥25%.">i</span>
         </div>
 
-        <div id="collegate_help" class="tiny muted" style="display:none">
+        <!-- Spiegazione sempre visibile -->
+        <div id="collegate_help" class="tiny muted" style="display:block">
           <strong>Impresa collegata – sintesi</strong><br>
-          • Detiene &gt; 50% in un’altra impresa o è partecipata &gt; 50%<br>
-          • Controllo anche da persone/gruppi che agiscono insieme e: controllo in entrambe + stesso mercato (primi 2 ATECO) o fatturazioni reciproche ≥ 25%.
+          • Detieni &gt; 50% di un’altra impresa <em>oppure</em> sei partecipato &gt; 50%<br>
+          • Il controllo può derivare anche da persone/gruppi che agiscono insieme e: controllo in entrambe <em>e</em> stesso mercato (primi 2 ATECO) <em>oppure</em> fatturazioni reciproche ≥ 25%.
         </div>
 
         <div id="collegate_wrap" style="display:none">
@@ -159,13 +161,13 @@
             <label class="inline"><input type="radio" name="has_associate" value="no" checked> No</label>
             <label class="inline"><input type="radio" name="has_associate" value="si"> Sì</label>
           </div>
-          <span class="info" title="Società associate: partecipazione almeno 25% e non oltre 50% (capitale o diritti di voto).">i</span>
         </div>
 
-        <div id="associate_help" class="tiny muted" style="display:none">
+        <!-- Spiegazione sempre visibile -->
+        <div id="associate_help" class="tiny muted" style="display:block">
           <strong>Impresa associata – sintesi</strong><br>
-          • Detiene almeno il 25% e non oltre il 50% in un’altra impresa o è partecipata 25–50%<br>
-          • I dati economici si sommano <em>proporzionalmente</em> alla percentuale.
+          • Detieni almeno il 25% e non oltre il 50% in un’altra impresa <em>oppure</em> sei partecipato tra il 25% e il 50%.<br>
+          • I dati economici si considerano <em>pro‑quota</em> in base alla percentuale.
         </div>
 
         <div id="associate_wrap" style="display:none">
@@ -249,14 +251,15 @@
     </section>
 
     <footer class="card" style="text-align:center">
-      <div class="tiny">* ULA = Unità Lavorative Annue • Esempi e dati a scopo informativo • 🇪🇺 Normativa PMI: valutazione su ULA e (<em>uno</em> tra fatturato o totale attivo).</div>
+      <div class="tiny"> Strumento che utilizza AI ideato e creato da Alessia Aita (con l'aiuto di Leonardo Bergonzoni) secondo la 🇪🇺 Normativa PMI</div>
     </footer>
   </div>
 
 <script>
   // ====== Helpers ======
   const fmtEUR = new Intl.NumberFormat('it-IT', { style:'currency', currency:'EUR', maximumFractionDigits: 0 });
-  const fmtNum = new Intl.NumberFormat('it-IT');
+  const fmtUla = new Intl.NumberFormat('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  const fmtInt = new Intl.NumberFormat('it-IT');
   const clamp = (n,min,max)=>Math.min(Math.max(n,min),max);
   const val = id => document.getElementById(id).value.trim();
   const num = id => {
@@ -265,7 +268,7 @@
     return isNaN(n) ? 0 : n;
   };
 
-  // Compila i campi solo se arrivano valori utili; ritorna true se ha compilato qualcosa
+  // Compila SOLO i campi non ULA
   function populateForm(data){
     console.log('JSON estratto:', data);
     if(!data || typeof data!=='object') return false;
@@ -292,9 +295,7 @@
     const fat = cleanNum(data.fatturato);
     if(fat!=null){ document.getElementById('main_fatturato').value = fat; filled = true; }
 
-    const ula = parseInt(String(data.ula||'').replace(/[^\d-]/g,''),10);
-    if(Number.isFinite(ula)){ document.getElementById('main_ula').value = ula; filled = true; }
-
+    // ULA: ignorato (sempre inserito manualmente)
     return filled;
   }
 
@@ -314,11 +315,7 @@
 
       const json = await res.json();
       const ok = populateForm(json);
-      if(ok){
-        alert('Dati estratti e compilati!');
-      } else {
-        alert('Nessun dato utile estratto dal PDF. Controlla che i campi siano presenti nel documento.');
-      }
+      alert(ok ? 'Dati estratti e compilati!' : 'Nessun dato utile estratto dal PDF.');
     }catch(err){
       console.error(err);
       alert('Impossibile estrarre i dati dal PDF.');
@@ -382,7 +379,7 @@
       <div class="grid-3">
         <div>
           <label>ULA (dati interi)</label>
-          <input type="number" min="0" step="1" class="ula" placeholder="0">
+          <input type="number" min="0" step="0.01" class="ula" placeholder="0">
         </div>
         <div>
           <label>Dati proporzionali</label>
@@ -441,25 +438,23 @@
       const u = parseFloat(ula.value||'0')||0;
       attP.value = fmtEUR.format(attivo*p);
       fatP.value = fmtEUR.format(fatturato*p);
-      ulaP.value = fmtNum.format(Math.round(u*p));
+      ulaP.value = fmtUla.format(u*p); // << decimali
     };
     [perc,att,fat,ula].forEach(i=> i.addEventListener('input', recompute));
     recompute();
   }
 
-  // Toggle sections & help
+  // Toggle: mostriamo/nascondiamo SOLO i form, non le spiegazioni
   document.querySelectorAll('input[name="has_collegate"]').forEach(r=>{
     r.addEventListener('change',()=>{
       const show = r.value==='si' && r.checked;
       document.getElementById('collegate_wrap').style.display = show?'block':'none';
-      document.getElementById('collegate_help').style.display = show?'block':'none';
     })
   })
   document.querySelectorAll('input[name="has_associate"]').forEach(r=>{
     r.addEventListener('change',()=>{
       const show = r.value==='si' && r.checked;
       document.getElementById('associate_wrap').style.display = show?'block':'none';
-      document.getElementById('associate_help').style.display = show?'block':'none';
     })
   })
 
@@ -484,23 +479,30 @@
       const vAtt = parseFloat(c.querySelector('.attivo').value||'0')||0;
       const vFat = parseFloat(c.querySelector('.fatturato').value||'0')||0;
       const vUla = parseFloat(c.querySelector('.ula').value||'0')||0;
-      att += vAtt*p; fat += vFat*p; ula += Math.round(vUla*p);
+      att += vAtt*p; fat += vFat*p; ula += vUla*p; // << niente Math.round
     });
     return {att,fat,ula};
   }
 
   function setSummaryRow(key, base, coll, assoc){
     const tot = base + coll + assoc;
-    document.getElementById(`sum_${key}_base`).textContent = key==='ula' ? fmtNum.format(base) : fmtEUR.format(base);
-    document.getElementById(`sum_${key}_coll`).textContent = key==='ula' ? fmtNum.format(coll) : fmtEUR.format(coll);
-    document.getElementById(`sum_${key}_assoc`).textContent = key==='ula' ? fmtNum.format(assoc) : fmtEUR.format(assoc);
-    document.getElementById(`sum_${key}_tot`).textContent = key==='ula' ? fmtNum.format(tot) : fmtEUR.format(tot);
-    document.getElementById(`sum_${key}_chk`).textContent = key==='ula' ? fmtNum.format(tot) : fmtEUR.format(tot);
+    if(key==='ula'){
+      document.getElementById('sum_ula_base').textContent = fmtUla.format(base);
+      document.getElementById('sum_ula_coll').textContent = fmtUla.format(coll);
+      document.getElementById('sum_ula_assoc').textContent = fmtUla.format(assoc);
+      document.getElementById('sum_ula_tot').textContent = fmtUla.format(tot);
+      document.getElementById('sum_ula_chk').textContent = fmtUla.format(tot);
+    }else{
+      document.getElementById(`sum_${key}_base`).textContent = fmtEUR.format(base);
+      document.getElementById(`sum_${key}_coll`).textContent = fmtEUR.format(coll);
+      document.getElementById(`sum_${key}_assoc`).textContent = fmtEUR.format(assoc);
+      document.getElementById(`sum_${key}_tot`).textContent = fmtEUR.format(tot);
+      document.getElementById(`sum_${key}_chk`).textContent = fmtEUR.format(tot);
+    }
     return tot;
   }
 
   function classify(ula, fatt, attivo){
-    // Regola UE: classe determinata da ULA e (fatturato OR totale attivo)
     const M2=2_000_000, M10=10_000_000, M43=43_000_000, M50=50_000_000;
     const ok = (ulaMax, fattMax, attMax)=> ula < ulaMax && (fatt <= fattMax || attivo <= attMax);
     if (ok(10, M2, M2)) return 'micro';
@@ -510,7 +512,7 @@
   }
 
   function onCalculate(){
-    const base = { att: num('main_attivo'), fat: num('main_fatturato'), ula: parseInt(document.getElementById('main_ula').value||'0')||0 };
+    const base = { att: num('main_attivo'), fat: num('main_fatturato'), ula: parseFloat(document.getElementById('main_ula').value||'0')||0 };
     const coll = sumCollegate();
     const assoc = sumAssociate();
 
@@ -525,7 +527,7 @@
     badge.textContent = size.charAt(0).toUpperCase()+size.slice(1);
 
     const explain = document.getElementById('explain');
-    explain.innerHTML = `ULA totali: <strong>${fmtNum.format(ulaTot)}</strong> · Fatturato totale: <strong>${fmtEUR.format(fatTot)}</strong> · Totale attivo: <strong>${fmtEUR.format(attTot)}</strong><br>
+    explain.innerHTML = `ULA totali: <strong>${fmtUla.format(ulaTot)}</strong> · Fatturato totale: <strong>${fmtEUR.format(fatTot)}</strong> · Totale attivo: <strong>${fmtEUR.format(attTot)}</strong><br>
     Classificazione secondo regole UE: soglia sugli occupati <em>e</em> (fatturato <em>oppure</em> totale attivo).`;
 
     document.getElementById('results').style.display = 'grid';
@@ -555,7 +557,7 @@
       const cf = (c.querySelector('.cf')?.value||'').trim();
       const att = parseFloat(c.querySelector('.attivo')?.value||'0')||0;
       const fat = parseFloat(c.querySelector('.fatturato')?.value||'0')||0;
-      const ula = parseInt(c.querySelector('.ula')?.value||'0',10)||0;
+      const ula = parseFloat(c.querySelector('.ula')?.value||'0')||0; // decimali
       if(r || cf || att || fat || ula) out.push({r,cf,att,fat,ula});
     });
     return out;
@@ -590,23 +592,23 @@
     addLine('ULA: ' + (document.getElementById('sum_ula_base').textContent || '0'));
 
     // Collegate
-    const coll = collectCompanies(collegateList);
+    const coll = collectCompanies(document.getElementById('collegate_list'));
     addGap(8);
     doc.setFont('helvetica','bold'); addLine('Società collegate ('+coll.length+')', true);
     doc.setFont('helvetica','normal');
     if(coll.length===0){ addLine('- Nessuna'); }
     else coll.forEach((c,i)=>{
-      addLine(`${i+1}. ${c.r || '-'}  CF: ${c.cf || '-'}  Attivo: ${fmtEUR.format(c.att)}  Fatt.: ${fmtEUR.format(c.fat)}  ULA: ${c.ula}`);
+      addLine(`${i+1}. ${c.r || '-'}  CF: ${c.cf || '-'}  Attivo: ${fmtEUR.format(c.att)}  Fatt.: ${fmtEUR.format(c.fat)}  ULA: ${fmtUla.format(c.ula)}`);
     });
 
     // Associate
-    const assoc = collectCompanies(associateList);
+    const assoc = collectCompanies(document.getElementById('associate_list'));
     addGap(8);
     doc.setFont('helvetica','bold'); addLine('Società associate ('+assoc.length+')', true);
     doc.setFont('helvetica','normal');
     if(assoc.length===0){ addLine('- Nessuna'); }
     else assoc.forEach((c,i)=>{
-      addLine(`${i+1}. ${c.r || '-'}  CF: ${c.cf || '-'}  Attivo: ${fmtEUR.format(c.att)}  Fatt.: ${fmtEUR.format(c.fat)}  ULA: ${c.ula}`);
+      addLine(`${i+1}. ${c.r || '-'}  CF: ${c.cf || '-'}  Attivo: ${fmtEUR.format(c.att)}  Fatt.: ${fmtEUR.format(c.fat)}  ULA: ${fmtUla.format(c.ula)}`);
     });
 
     // Riepilogo
