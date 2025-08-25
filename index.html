@@ -4,6 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Calcola la Dimensione D’Impresa</title>
+  <!-- jsPDF per il report -->
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <style>
     :root{
       --bg:#f7f9fb;         /* soft business-like palette */
@@ -17,7 +19,7 @@
       --brand:#0ea5e9;      /* sky-500 */
     }
     *{box-sizing:border-box}
-    body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Helvetica Neue', Arial}
+    body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,'Helvetica Neue',Arial}
     header{padding:28px 16px;text-align:center}
     h1{margin:0 0 8px;font-size:28px}
     .sub{color:var(--muted)}
@@ -26,7 +28,7 @@
     .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
     @media (max-width:800px){.row{grid-template-columns:1fr}}
     label{display:block;font-weight:600;margin:2px 0 6px}
-    input[type="text"], input[type="number"], input[type="file"], select{width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;background:white;color:var(--ink)}
+    input[type="text"],input[type="number"],input[type="file"],select{width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink)}
     input[type="number"]{appearance:textfield}
     .inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     .info{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--line);color:var(--muted);font-size:12px;font-weight:700;cursor:help}
@@ -36,9 +38,11 @@
     button.ghost{background:transparent;border-color:var(--line);color:var(--ink)}
     button:disabled{opacity:.5;cursor:not-allowed}
     .tiny{font-size:12px;color:var(--muted)}
-    table{width:100%;border-collapse:collapse}
-    th,td{border-top:1px solid var(--line);padding:10px;text-align:right}
-    th:first-child, td:first-child{text-align:left}
+    /* Tabella riepilogo */
+    .table-wrap{border:1px solid var(--line);border-radius:12px;overflow-x:auto;background:#fff}
+    table{width:100%;border-collapse:collapse;min-width:640px}
+    th,td{border-top:1px solid var(--line);padding:10px;text-align:right;white-space:nowrap}
+    th:first-child,td:first-child{text-align:left}
     .pill{display:inline-block;padding:6px 10px;border-radius:999px;font-weight:700}
     .pill.micro{background:#dcfce7;color:#065f46}
     .pill.piccola{background:#dcfce7;color:#166534}
@@ -49,20 +53,20 @@
     .list{display:flex;flex-direction:column;gap:12px}
     .muted{color:var(--muted)}
     .emoji{font-size:20px;margin-right:6px}
-    .right{float:right}
     .radio-group{display:flex;gap:16px;align-items:center}
     .kicker{font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-size:12px}
     .grid-3{display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px}
     @media (max-width:700px){.grid-3{grid-template-columns:1fr}}
-    .proportional{display:grid;grid-template-columns:1fr 1fr;gap:8px}
     .badge{border:1px solid var(--line);padding:4px 8px;border-radius:999px;font-size:12px;color:var(--muted)}
-      @media (max-width:480px){
+    /* Mobile tweaks */
+    @media (max-width:480px){
       body{font-size:15px}
       header{padding:22px 14px}
       .actions{flex-direction:column}
       .actions button{width:100%}
-      input[type="text"], input[type="number"], input[type="file"], select{padding:12px}
+      input[type="text"],input[type="number"],input[type="file"],select{padding:12px}
       button{padding:12px 16px}
+      th,td{padding:6px;font-size:13px}
     }
   </style>
 </head>
@@ -105,7 +109,7 @@
         <div>
           <label>Carica visura (PDF)</label>
           <input id="file_visura" type="file" accept="application/pdf" />
-          <p class="tiny">✨ Prossimamente: estrazione automatica dei dati da PDF (richiede un servizio lato server / API di IA).</p>
+          <p class="tiny" id="pdf_hint">Carica il PDF per l’auto‑compilazione (richiede testo nel PDF, non immagine).</p>
         </div>
         <div>
           <label>Carica bilancio (PDF)</label>
@@ -126,15 +130,13 @@
             <label class="inline"><input type="radio" name="has_collegate" value="no" checked> No</label>
             <label class="inline"><input type="radio" name="has_collegate" value="si"> Sì</label>
           </div>
-          <span class="info" title="Società collegate: possesso DIRETTO o INDIRETTO di controllo (&gt;50% capitale o diritti di voto), oppure controllo congiunto da persone/gruppi che operano di comune accordo e le imprese operano negli stessi mercati (primi 2 digit ATECO) o hanno rapporti di fatturazione ≥ 25%.">i</span>
+          <span class="info" title="Società collegate: possesso diretto/indiretto di controllo (>50% capitale o voti) o controllo congiunto da persone in accordo; stesso mercato (primi 2 digit ATECO) o fatturazioni reciproche ≥25%.">i</span>
         </div>
 
         <div id="collegate_help" class="tiny muted" style="display:none">
           <strong>Impresa collegata – sintesi</strong><br>
-          • Detiene &gt; 50% in un’altra impresa <em>oppure</em> è partecipata &gt; 50%<br>
-          • Il controllo può derivare anche da persone/gruppi che agiscono insieme <em>e</em>:<br>
-          – posseggono congiuntamente il controllo in entrambe le imprese;<br>
-          – operano negli stessi mercati (primi 2 numeri ATECO) <em>oppure</em> hanno fatturazioni reciproche ≥ 25% del fatturato.
+          • Detiene &gt; 50% in un’altra impresa o è partecipata &gt; 50%<br>
+          • Controllo anche da persone/gruppi che agiscono insieme e: controllo in entrambe + stesso mercato (primi 2 ATECO) o fatturazioni reciproche ≥ 25%.
         </div>
 
         <div id="collegate_wrap" style="display:none">
@@ -157,13 +159,13 @@
             <label class="inline"><input type="radio" name="has_associate" value="no" checked> No</label>
             <label class="inline"><input type="radio" name="has_associate" value="si"> Sì</label>
           </div>
-          <span class="info" title="Società associate: partecipazione almeno 25% e non oltre 50% (capitale o diritti di voto), in una direzione o nell'altra.">i</span>
+          <span class="info" title="Società associate: partecipazione almeno 25% e non oltre 50% (capitale o diritti di voto).">i</span>
         </div>
 
         <div id="associate_help" class="tiny muted" style="display:none">
           <strong>Impresa associata – sintesi</strong><br>
-          • Detiene almeno il 25% e non oltre il 50% in un’altra impresa <em>oppure</em> è partecipata tra 25% e 50%.<br>
-          • Per le associate i dati economici si considerano <em>proporzionali</em> alla percentuale di partecipazione.
+          • Detiene almeno il 25% e non oltre il 50% in un’altra impresa o è partecipata 25–50%<br>
+          • I dati economici si sommano <em>proporzionalmente</em> alla percentuale.
         </div>
 
         <div id="associate_wrap" style="display:none">
@@ -187,8 +189,9 @@
       <div class="divider"></div>
 
       <h3 class="section-title">Riepilogo <span class="emoji">📊</span></h3>
-      <div class="tiny muted" style="margin-bottom:8px">I valori mostrati in EUR. Le associate sono sommate pro-quota.</div>
-      <div class="card" style="padding:0">
+      <div class="tiny muted" style="margin-bottom:8px">Valori in EUR. Le associate sono sommate pro‑quota.</div>
+
+      <div class="table-wrap">
         <table>
           <thead>
             <tr>
@@ -239,6 +242,10 @@
           <div id="explain" class="tiny" style="margin-top:8px"></div>
         </div>
       </div>
+
+      <div class="actions" id="download_wrap" style="display:none;margin-top:12px">
+        <button id="download_pdf" type="button" class="secondary">⬇️ Scarica report in PDF</button>
+      </div>
     </section>
 
     <footer class="card" style="text-align:center">
@@ -248,13 +255,47 @@
 
 <script>
   // ====== Helpers ======
-  async function populateForm(data){
-    if(!data) return;
-    if(data.ragioneSociale) document.getElementById('main_ragione').value = data.ragioneSociale;
-    if(data.codiceFiscale) document.getElementById('main_cf').value = data.codiceFiscale;
-    if(data.attivo!=null) document.getElementById('main_attivo').value = String(data.attivo).replace(',','.')
-    if(data.fatturato!=null) document.getElementById('main_fatturato').value = String(data.fatturato).replace(',','.')
-    if(data.ula!=null) document.getElementById('main_ula').value = parseInt(data.ula,10)||0;
+  const fmtEUR = new Intl.NumberFormat('it-IT', { style:'currency', currency:'EUR', maximumFractionDigits: 0 });
+  const fmtNum = new Intl.NumberFormat('it-IT');
+  const clamp = (n,min,max)=>Math.min(Math.max(n,min),max);
+  const val = id => document.getElementById(id).value.trim();
+  const num = id => {
+    const v = (document.getElementById(id).value || '').toString().replace(/\./g,'').replace(',', '.');
+    const n = parseFloat(v);
+    return isNaN(n) ? 0 : n;
+  };
+
+  // Compila i campi solo se arrivano valori utili; ritorna true se ha compilato qualcosa
+  function populateForm(data){
+    console.log('JSON estratto:', data);
+    if(!data || typeof data!=='object') return false;
+    let filled = false;
+
+    if(data.ragioneSociale && data.ragioneSociale.trim()){
+      document.getElementById('main_ragione').value = data.ragioneSociale.trim();
+      filled = true;
+    }
+    if(data.codiceFiscale && data.codiceFiscale.trim()){
+      document.getElementById('main_cf').value = data.codiceFiscale.trim();
+      filled = true;
+    }
+
+    const cleanNum = v => {
+      if(v==null) return null;
+      const s = String(v).replace(/[€\s]/g,'').replace(/\./g,'').replace(',', '.');
+      const n = parseFloat(s);
+      return Number.isFinite(n) ? n : null;
+    };
+
+    const att = cleanNum(data.attivo);
+    if(att!=null){ document.getElementById('main_attivo').value = att; filled = true; }
+    const fat = cleanNum(data.fatturato);
+    if(fat!=null){ document.getElementById('main_fatturato').value = fat; filled = true; }
+
+    const ula = parseInt(String(data.ula||'').replace(/[^\d-]/g,''),10);
+    if(Number.isFinite(ula)){ document.getElementById('main_ula').value = ula; filled = true; }
+
+    return filled;
   }
 
   async function uploadAndExtract(file, kind){
@@ -265,10 +306,19 @@
     inputs.forEach(b=>b.disabled=true);
     try{
       const res = await fetch('/.netlify/functions/extract', { method:'POST', body: fd });
+      if(res.status === 422){
+        alert('Il PDF sembra essere uno scan senza testo. Serve OCR per estrarre i dati.');
+        return;
+      }
       if(!res.ok) throw new Error('Errore server: '+res.status);
+
       const json = await res.json();
-      await populateForm(json);
-      alert('Dati estratti e compilati!');
+      const ok = populateForm(json);
+      if(ok){
+        alert('Dati estratti e compilati!');
+      } else {
+        alert('Nessun dato utile estratto dal PDF. Controlla che i campi siano presenti nel documento.');
+      }
     }catch(err){
       console.error(err);
       alert('Impossibile estrarre i dati dal PDF.');
@@ -276,17 +326,6 @@
       inputs.forEach(b=>b.disabled=false);
     }
   }
-
-  
-  const fmtEUR = new Intl.NumberFormat('it-IT', { style:'currency', currency:'EUR', maximumFractionDigits: 0 });
-  const fmtNum = new Intl.NumberFormat('it-IT');
-  const clamp = (n,min,max)=>Math.min(Math.max(n,min),max);
-  const val = id => document.getElementById(id).value.trim();
-  const num = id => {
-    const v = (document.getElementById(id).value || '').toString().replace(/\./g,'').replace(',', '.');
-    const n = parseFloat(v);
-    return isNaN(n) ? 0 : n;
-  };
 
   // ====== Dynamic blocks (collegate & associate) ======
   const maxItems = 10;
@@ -379,12 +418,9 @@
     scope.querySelectorAll('.remove').forEach(btn=>{
       btn.onclick = ()=>{
         btn.closest('.card').remove();
-        // re-label indexes
         Array.from(scope.children).forEach((card,i)=>{
           const title = card.querySelector('strong');
-          if(title){
-            title.textContent = title.textContent.replace(/#\d+/, '#'+(i+1));
-          }
+          if(title){ title.textContent = title.textContent.replace(/#\d+/, '#'+(i+1)); }
         })
       }
     })
@@ -401,10 +437,10 @@
     const recompute = ()=>{
       const p = clamp(parseFloat(perc.value||'0'),0,100)/100;
       const attivo = parseFloat(att.value||'0')||0;
-      const fatt = parseFloat(fat.value||'0')||0;
+      const fatturato = parseFloat(fat.value||'0')||0;
       const u = parseFloat(ula.value||'0')||0;
       attP.value = fmtEUR.format(attivo*p);
-      fatP.value = fmtEUR.format(fatt*p);
+      fatP.value = fmtEUR.format(fatturato*p);
       ulaP.value = fmtNum.format(Math.round(u*p));
     };
     [perc,att,fat,ula].forEach(i=> i.addEventListener('input', recompute));
@@ -464,11 +500,9 @@
   }
 
   function classify(ula, fatt, attivo){
-    // Regola UE: la classe è determinata da ULA e (fatturato OR totale attivo)
-    // Soglie: Micro <10 & (<=2m OR <=2m) ; Piccola <50 & (<=10m OR <=10m) ; Media <250 & (<=50m OR <=43m) ; altrimenti Grande
+    // Regola UE: classe determinata da ULA e (fatturato OR totale attivo)
     const M2=2_000_000, M10=10_000_000, M43=43_000_000, M50=50_000_000;
     const ok = (ulaMax, fattMax, attMax)=> ula < ulaMax && (fatt <= fattMax || attivo <= attMax);
-
     if (ok(10, M2, M2)) return 'micro';
     if (ok(50, M10, M10)) return 'piccola';
     if (ok(250, M50, M43)) return 'media';
@@ -492,25 +526,113 @@
 
     const explain = document.getElementById('explain');
     explain.innerHTML = `ULA totali: <strong>${fmtNum.format(ulaTot)}</strong> · Fatturato totale: <strong>${fmtEUR.format(fatTot)}</strong> · Totale attivo: <strong>${fmtEUR.format(attTot)}</strong><br>
-    Classificazione determinata secondo regole UE: soglia sugli occupati <em>e</em> (fatturato <em>oppure</em> totale attivo).`;
+    Classificazione secondo regole UE: soglia sugli occupati <em>e</em> (fatturato <em>oppure</em> totale attivo).`;
 
     document.getElementById('results').style.display = 'grid';
+    document.getElementById('download_wrap').style.display = 'flex';
   }
 
   document.getElementById('calc_btn').onclick = onCalculate;
   document.getElementById('reset_btn').onclick = ()=> window.location.reload();
 
-  // ====== (Optional) Stubs for PDF upload (to be implemented server-side) ======
+  // Upload listeners
   document.getElementById('file_visura').addEventListener('change',(e)=>{
     const f = e.target.files && e.target.files[0];
     if(f) uploadAndExtract(f, 'visura');
   });
-
   document.getElementById('file_bilancio').addEventListener('change',(e)=>{
     const f = e.target.files && e.target.files[0];
     if(f) uploadAndExtract(f, 'bilancio');
   });
 
+  // ====== Report PDF ======
+  document.getElementById('download_pdf').addEventListener('click', downloadReport);
+
+  function collectCompanies(scope){
+    const out = [];
+    scope.querySelectorAll('.card').forEach(c=>{
+      const r = (c.querySelector('.ragione')?.value||'').trim();
+      const cf = (c.querySelector('.cf')?.value||'').trim();
+      const att = parseFloat(c.querySelector('.attivo')?.value||'0')||0;
+      const fat = parseFloat(c.querySelector('.fatturato')?.value||'0')||0;
+      const ula = parseInt(c.querySelector('.ula')?.value||'0',10)||0;
+      if(r || cf || att || fat || ula) out.push({r,cf,att,fat,ula});
+    });
+    return out;
+  }
+
+  function downloadReport(){
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit:'pt', format:'a4' });
+    const margin = 40;
+    let y = margin;
+
+    const addLine = (text, bold=false) => {
+      doc.setFont('helvetica', bold ? 'bold' : 'normal');
+      doc.text(text, margin, y);
+      y += 18;
+    };
+    const addGap = h => { y += h; };
+
+    // Header
+    doc.setFontSize(16); doc.setFont('helvetica','bold');
+    addLine('Calcolo Dimensione d’Impresa', true);
+    doc.setFontSize(10); addLine('Report generato automaticamente dal tool web.');
+
+    addGap(10);
+    doc.setFontSize(12); doc.setFont('helvetica','bold');
+    addLine('Impresa principale', true);
+    doc.setFont('helvetica','normal');
+    addLine('Ragione sociale: ' + (val('main_ragione') || '-'));
+    addLine('Codice fiscale: ' + (val('main_cf') || '-'));
+    addLine('Totale attivo: ' + (document.getElementById('sum_attivo_base').textContent || '-'));
+    addLine('Fatturato: ' + (document.getElementById('sum_fatt_base').textContent || '-'));
+    addLine('ULA: ' + (document.getElementById('sum_ula_base').textContent || '0'));
+
+    // Collegate
+    const coll = collectCompanies(collegateList);
+    addGap(8);
+    doc.setFont('helvetica','bold'); addLine('Società collegate ('+coll.length+')', true);
+    doc.setFont('helvetica','normal');
+    if(coll.length===0){ addLine('- Nessuna'); }
+    else coll.forEach((c,i)=>{
+      addLine(`${i+1}. ${c.r || '-'}  CF: ${c.cf || '-'}  Attivo: ${fmtEUR.format(c.att)}  Fatt.: ${fmtEUR.format(c.fat)}  ULA: ${c.ula}`);
+    });
+
+    // Associate
+    const assoc = collectCompanies(associateList);
+    addGap(8);
+    doc.setFont('helvetica','bold'); addLine('Società associate ('+assoc.length+')', true);
+    doc.setFont('helvetica','normal');
+    if(assoc.length===0){ addLine('- Nessuna'); }
+    else assoc.forEach((c,i)=>{
+      addLine(`${i+1}. ${c.r || '-'}  CF: ${c.cf || '-'}  Attivo: ${fmtEUR.format(c.att)}  Fatt.: ${fmtEUR.format(c.fat)}  ULA: ${c.ula}`);
+    });
+
+    // Riepilogo
+    addGap(8);
+    doc.setFont('helvetica','bold'); addLine('Riepilogo', true);
+    doc.setFont('helvetica','normal');
+    addLine('Totale attivo: Base ' + document.getElementById('sum_attivo_base').textContent +
+            ' · Collegate ' + document.getElementById('sum_attivo_coll').textContent +
+            ' · Associate ' + document.getElementById('sum_attivo_assoc').textContent +
+            ' · Totale ' + document.getElementById('sum_attivo_tot').textContent);
+    addLine('Fatturato: Base ' + document.getElementById('sum_fatt_base').textContent +
+            ' · Collegate ' + document.getElementById('sum_fatt_coll').textContent +
+            ' · Associate ' + document.getElementById('sum_fatt_assoc').textContent +
+            ' · Totale ' + document.getElementById('sum_fatt_tot').textContent);
+    addLine('ULA: Base ' + document.getElementById('sum_ula_base').textContent +
+            ' · Collegate ' + document.getElementById('sum_ula_coll').textContent +
+            ' · Associate ' + document.getElementById('sum_ula_assoc').textContent +
+            ' · Totale ' + document.getElementById('sum_ula_tot').textContent);
+
+    // Dimensione
+    addGap(10);
+    doc.setFont('helvetica','bold'); doc.setFontSize(14);
+    addLine('Dimensione d’impresa: ' + (document.getElementById('badge').textContent || '—'), true);
+
+    doc.save('dimensione-impresa.pdf');
+  }
 </script>
 </body>
 </html>
