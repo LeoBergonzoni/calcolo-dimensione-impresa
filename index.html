@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Calcola la Dimensione D’Impresa</title>
+  <style>
+    :root{
+      --bg:#f7f9fb;         /* soft business-like palette */
+      --card:#ffffff;
+      --ink:#1f2937;        /* gray-800 */
+      --muted:#6b7280;      /* gray-500 */
+      --line:#e5e7eb;       /* gray-200 */
+      --ok:#16a34a;         /* green-600 */
+      --warn:#f59e0b;       /* amber-500 */
+      --alert:#f97316;      /* orange-500 */
+      --brand:#0ea5e9;      /* sky-500 */
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, 'Helvetica Neue', Arial}
+    header{padding:28px 16px;text-align:center}
+    h1{margin:0 0 8px;font-size:28px}
+    .sub{color:var(--muted)}
+    .container{max-width:1080px;margin:0 auto;padding:0 16px 64px}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px 16px;margin:14px 0;box-shadow:0 2px 10px rgba(0,0,0,.05)}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    @media (max-width:800px){.row{grid-template-columns:1fr}}
+    label{display:block;font-weight:600;margin:2px 0 6px}
+    input[type="text"], input[type="number"], input[type="file"], select{width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;background:white;color:var(--ink)}
+    input[type="number"]{appearance:textfield}
+    .inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .info{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:var(--line);color:var(--muted);font-size:12px;font-weight:700;cursor:help}
+    .actions{display:flex;gap:10px;flex-wrap:wrap}
+    button{border:1px solid var(--line);background:var(--brand);color:white;padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:700}
+    button.secondary{background:#fff;color:var(--ink)}
+    button.ghost{background:transparent;border-color:var(--line);color:var(--ink)}
+    button:disabled{opacity:.5;cursor:not-allowed}
+    .tiny{font-size:12px;color:var(--muted)}
+    table{width:100%;border-collapse:collapse}
+    th,td{border-top:1px solid var(--line);padding:10px;text-align:right}
+    th:first-child, td:first-child{text-align:left}
+    .pill{display:inline-block;padding:6px 10px;border-radius:999px;font-weight:700}
+    .pill.micro{background:#dcfce7;color:#065f46}
+    .pill.piccola{background:#dcfce7;color:#166534}
+    .pill.media{background:#fef3c7;color:#92400e}
+    .pill.grande{background:#ffedd5;color:#9a3412}
+    .section-title{font-size:18px;margin:0 0 8px}
+    .divider{height:1px;background:var(--line);margin:12px 0}
+    .list{display:flex;flex-direction:column;gap:12px}
+    .muted{color:var(--muted)}
+    .emoji{font-size:20px;margin-right:6px}
+    .right{float:right}
+    .radio-group{display:flex;gap:16px;align-items:center}
+    .kicker{font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-size:12px}
+    .grid-3{display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px}
+    @media (max-width:700px){.grid-3{grid-template-columns:1fr}}
+    .proportional{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    .badge{border:1px solid var(--line);padding:4px 8px;border-radius:999px;font-size:12px;color:var(--muted)}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Calcola la Dimensione D’Impresa <span class="emoji">🏢</span></h1>
+    <p class="sub">Calcola la reale dimensione della tua impresa secondo le normative europee.</p>
+  </header>
+
+  <div class="container">
+    <!-- DATI IMPRESA PRINCIPALE -->
+    <section class="card">
+      <h2 class="section-title">Dati impresa <span class="emoji">🧾</span></h2>
+      <div class="row">
+        <div>
+          <label>Ragione sociale</label>
+          <input id="main_ragione" type="text" placeholder="Es. Alfa S.r.l." />
+        </div>
+        <div>
+          <label>Codice fiscale</label>
+          <input id="main_cf" type="text" placeholder="XXXXXXXXXXXX" />
+        </div>
+        <div>
+          <label>Totale attivo (EUR)</label>
+          <input id="main_attivo" type="number" min="0" step="0.01" placeholder="0" />
+        </div>
+        <div>
+          <label>Fatturato (EUR)</label>
+          <input id="main_fatturato" type="number" min="0" step="0.01" placeholder="0" />
+        </div>
+        <div>
+          <label>ULA <span class="info" title="Unità Lavorative Annue (media occupati annui equivalenti a tempo pieno)">i</span></label>
+          <input id="main_ula" type="number" min="0" step="1" placeholder="0" />
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="row">
+        <div>
+          <label>Carica visura (PDF)</label>
+          <input id="file_visura" type="file" accept="application/pdf" />
+          <p class="tiny">✨ Prossimamente: estrazione automatica dei dati da PDF (richiede un servizio lato server / API di IA).</p>
+        </div>
+        <div>
+          <label>Carica bilancio (PDF)</label>
+          <input id="file_bilancio" type="file" accept="application/pdf" />
+        </div>
+      </div>
+    </section>
+
+    <!-- COLLEGATE / ASSOCIATE -->
+    <section class="card">
+      <h2 class="section-title">Struttura del gruppo <span class="emoji">👥</span></h2>
+
+      <!-- Società collegate -->
+      <div class="list">
+        <div class="inline">
+          <div class="kicker">Hai società collegate?</div>
+          <div class="radio-group">
+            <label class="inline"><input type="radio" name="has_collegate" value="no" checked> No</label>
+            <label class="inline"><input type="radio" name="has_collegate" value="si"> Sì</label>
+          </div>
+          <span class="info" title="Società collegate: possesso DIRETTO o INDIRETTO di controllo (&gt;50% capitale o diritti di voto), oppure controllo congiunto da persone/gruppi che operano di comune accordo e le imprese operano negli stessi mercati (primi 2 digit ATECO) o hanno rapporti di fatturazione ≥ 25%.">i</span>
+        </div>
+
+        <div id="collegate_help" class="tiny muted" style="display:none">
+          <strong>Impresa collegata – sintesi</strong><br>
+          • Detiene &gt; 50% in un’altra impresa <em>oppure</em> è partecipata &gt; 50%<br>
+          • Il controllo può derivare anche da persone/gruppi che agiscono insieme <em>e</em>:<br>
+          – posseggono congiuntamente il controllo in entrambe le imprese;<br>
+          – operano negli stessi mercati (primi 2 numeri ATECO) <em>oppure</em> hanno fatturazioni reciproche ≥ 25% del fatturato.
+        </div>
+
+        <div id="collegate_wrap" style="display:none">
+          <div class="divider"></div>
+          <div id="collegate_list" class="list"></div>
+          <div class="actions">
+            <button id="add_collegata" type="button" class="secondary">+ Aggiungi collegata</button>
+            <span class="tiny">Max 10</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Società associate -->
+      <div class="list">
+        <div class="inline">
+          <div class="kicker">Hai società associate?</div>
+          <div class="radio-group">
+            <label class="inline"><input type="radio" name="has_associate" value="no" checked> No</label>
+            <label class="inline"><input type="radio" name="has_associate" value="si"> Sì</label>
+          </div>
+          <span class="info" title="Società associate: partecipazione almeno 25% e non oltre 50% (capitale o diritti di voto), in una direzione o nell'altra.">i</span>
+        </div>
+
+        <div id="associate_help" class="tiny muted" style="display:none">
+          <strong>Impresa associata – sintesi</strong><br>
+          • Detiene almeno il 25% e non oltre il 50% in un’altra impresa <em>oppure</em> è partecipata tra 25% e 50%.<br>
+          • Per le associate i dati economici si considerano <em>proporzionali</em> alla percentuale di partecipazione.
+        </div>
+
+        <div id="associate_wrap" style="display:none">
+          <div class="divider"></div>
+          <div id="associate_list" class="list"></div>
+          <div class="actions">
+            <button id="add_associata" type="button" class="secondary">+ Aggiungi associata</button>
+            <span class="tiny">Max 10</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIEPILOGO & CALCOLO -->
+    <section class="card">
+      <div class="actions">
+        <button id="calc_btn" type="button">🧮 Calcola la dimensione</button>
+        <button id="reset_btn" type="button" class="ghost">Ripulisci</button>
+      </div>
+
+      <div class="divider"></div>
+
+      <h3 class="section-title">Riepilogo <span class="emoji">📊</span></h3>
+      <div class="tiny muted" style="margin-bottom:8px">I valori mostrati in EUR. Le associate sono sommate pro-quota.</div>
+      <div class="card" style="padding:0">
+        <table>
+          <thead>
+            <tr>
+              <th>Voce</th>
+              <th>Base</th>
+              <th>Totale collegate</th>
+              <th>Totale associate</th>
+              <th>Totale</th>
+              <th>Check</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Totale attivo</td>
+              <td id="sum_attivo_base">– €</td>
+              <td id="sum_attivo_coll">– €</td>
+              <td id="sum_attivo_assoc">– €</td>
+              <td id="sum_attivo_tot">– €</td>
+              <td id="sum_attivo_chk">– €</td>
+            </tr>
+            <tr>
+              <td>Fatturato</td>
+              <td id="sum_fatt_base">– €</td>
+              <td id="sum_fatt_coll">– €</td>
+              <td id="sum_fatt_assoc">– €</td>
+              <td id="sum_fatt_tot">– €</td>
+              <td id="sum_fatt_chk">– €</td>
+            </tr>
+            <tr>
+              <td>ULA</td>
+              <td id="sum_ula_base">0</td>
+              <td id="sum_ula_coll">0</td>
+              <td id="sum_ula_assoc">0</td>
+              <td id="sum_ula_tot">0</td>
+              <td id="sum_ula_chk">0</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div id="results" class="row" style="margin-top:14px;display:none">
+        <div class="card">
+          <div class="kicker">Dimensione d'impresa</div>
+          <div id="badge" class="pill" style="margin-top:8px">—</div>
+        </div>
+        <div class="card">
+          <div class="kicker">Spiegazione</div>
+          <div id="explain" class="tiny" style="margin-top:8px"></div>
+        </div>
+      </div>
+    </section>
+
+    <footer class="card" style="text-align:center">
+      <div class="tiny">* ULA = Unità Lavorative Annue • Esempi e dati a scopo informativo • 🇪🇺 Normativa PMI: valutazione su ULA e (<em>uno</em> tra fatturato o totale attivo).</div>
+    </footer>
+  </div>
+
+<script>
+  // ====== Helpers ======
+  const fmtEUR = new Intl.NumberFormat('it-IT', { style:'currency', currency:'EUR', maximumFractionDigits: 0 });
+  const fmtNum = new Intl.NumberFormat('it-IT');
+  const clamp = (n,min,max)=>Math.min(Math.max(n,min),max);
+  const val = id => document.getElementById(id).value.trim();
+  const num = id => {
+    const v = (document.getElementById(id).value || '').toString().replace(/\./g,'').replace(',', '.');
+    const n = parseFloat(v);
+    return isNaN(n) ? 0 : n;
+  };
+
+  // ====== Dynamic blocks (collegate & associate) ======
+  const maxItems = 10;
+
+  const collegataTemplate = (idx)=>`
+    <div class="card">
+      <div class="inline" style="justify-content:space-between">
+        <strong>Società collegata #${idx+1}</strong>
+        <button type="button" class="ghost remove">– Rimuovi</button>
+      </div>
+      <div class="row">
+        <div><label>Ragione sociale</label><input type="text" class="ragione" placeholder="Es. Beta S.p.A."></div>
+        <div><label>Codice fiscale</label><input type="text" class="cf" placeholder="XXXXXXXXXXXX"></div>
+        <div><label>Totale attivo (EUR)</label><input type="number" min="0" step="0.01" class="attivo" placeholder="0"></div>
+        <div><label>Fatturato (EUR)</label><input type="number" min="0" step="0.01" class="fatturato" placeholder="0"></div>
+        <div><label>ULA</label><input type="number" min="0" step="1" class="ula" placeholder="0"></div>
+      </div>
+    </div>`;
+
+  const associataTemplate = (idx)=>`
+    <div class="card">
+      <div class="inline" style="justify-content:space-between">
+        <strong>Società associata #${idx+1}</strong>
+        <div class="inline" style="gap:8px">
+          <span class="badge">Proporzionale alla %</span>
+          <button type="button" class="ghost remove">– Rimuovi</button>
+        </div>
+      </div>
+      <div class="row">
+        <div><label>Percentuale (%)</label><input type="number" min="0" max="100" step="0.01" class="perc" placeholder="25"></div>
+        <div><label>Ragione sociale</label><input type="text" class="ragione" placeholder="Es. Gamma S.r.l."></div>
+        <div><label>Codice fiscale</label><input type="text" class="cf" placeholder="XXXXXXXXXXXX"></div>
+      </div>
+      <div class="grid-3">
+        <div>
+          <label>Totale attivo (dati interi, EUR)</label>
+          <input type="number" min="0" step="0.01" class="attivo" placeholder="0">
+        </div>
+        <div>
+          <label>Dati proporzionali</label>
+          <input type="text" class="attivo_prop" readonly placeholder="0">
+        </div>
+      </div>
+      <div class="grid-3">
+        <div>
+          <label>Fatturato (dati interi, EUR)</label>
+          <input type="number" min="0" step="0.01" class="fatturato" placeholder="0">
+        </div>
+        <div>
+          <label>Dati proporzionali</label>
+          <input type="text" class="fatturato_prop" readonly placeholder="0">
+        </div>
+      </div>
+      <div class="grid-3">
+        <div>
+          <label>ULA (dati interi)</label>
+          <input type="number" min="0" step="1" class="ula" placeholder="0">
+        </div>
+        <div>
+          <label>Dati proporzionali</label>
+          <input type="text" class="ula_prop" readonly placeholder="0">
+        </div>
+      </div>
+    </div>`;
+
+  const collegateList = document.getElementById('collegate_list');
+  const associateList = document.getElementById('associate_list');
+
+  function addCollegata(){
+    const count = collegateList.children.length;
+    if(count>=maxItems) return alert('Puoi inserire al massimo '+maxItems+' società collegate');
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = collegataTemplate(count);
+    collegateList.appendChild(wrapper.firstElementChild);
+    bindRemove(collegateList);
+  }
+
+  function addAssociata(){
+    const count = associateList.children.length;
+    if(count>=maxItems) return alert('Puoi inserire al massimo '+maxItems+' società associate');
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = associataTemplate(count);
+    const el = wrapper.firstElementChild;
+    associateList.appendChild(el);
+    bindRemove(associateList);
+    bindAssociateProportional(el);
+  }
+
+  function bindRemove(scope){
+    scope.querySelectorAll('.remove').forEach(btn=>{
+      btn.onclick = ()=>{
+        btn.closest('.card').remove();
+        // re-label indexes
+        Array.from(scope.children).forEach((card,i)=>{
+          const title = card.querySelector('strong');
+          if(title){
+            title.textContent = title.textContent.replace(/#\d+/, '#'+(i+1));
+          }
+        })
+      }
+    })
+  }
+
+  function bindAssociateProportional(card){
+    const perc = card.querySelector('.perc');
+    const att = card.querySelector('.attivo');
+    const fat = card.querySelector('.fatturato');
+    const ula = card.querySelector('.ula');
+    const attP = card.querySelector('.attivo_prop');
+    const fatP = card.querySelector('.fatturato_prop');
+    const ulaP = card.querySelector('.ula_prop');
+    const recompute = ()=>{
+      const p = clamp(parseFloat(perc.value||'0'),0,100)/100;
+      const attivo = parseFloat(att.value||'0')||0;
+      const fatt = parseFloat(fat.value||'0')||0;
+      const u = parseFloat(ula.value||'0')||0;
+      attP.value = fmtEUR.format(attivo*p);
+      fatP.value = fmtEUR.format(fatt*p);
+      ulaP.value = fmtNum.format(Math.round(u*p));
+    };
+    [perc,att,fat,ula].forEach(i=> i.addEventListener('input', recompute));
+    recompute();
+  }
+
+  // Toggle sections & help
+  document.querySelectorAll('input[name="has_collegate"]').forEach(r=>{
+    r.addEventListener('change',()=>{
+      const show = r.value==='si' && r.checked;
+      document.getElementById('collegate_wrap').style.display = show?'block':'none';
+      document.getElementById('collegate_help').style.display = show?'block':'none';
+    })
+  })
+  document.querySelectorAll('input[name="has_associate"]').forEach(r=>{
+    r.addEventListener('change',()=>{
+      const show = r.value==='si' && r.checked;
+      document.getElementById('associate_wrap').style.display = show?'block':'none';
+      document.getElementById('associate_help').style.display = show?'block':'none';
+    })
+  })
+
+  document.getElementById('add_collegata').onclick = addCollegata;
+  document.getElementById('add_associata').onclick = addAssociata;
+
+  // ====== Calculation ======
+  function sumCollegate(){
+    let att=0,fat=0,ula=0;
+    collegateList.querySelectorAll('.card').forEach(c=>{
+      const vAtt = parseFloat(c.querySelector('.attivo').value||'0')||0;
+      const vFat = parseFloat(c.querySelector('.fatturato').value||'0')||0;
+      const vUla = parseFloat(c.querySelector('.ula').value||'0')||0;
+      att += vAtt; fat += vFat; ula += vUla;
+    });
+    return {att,fat,ula};
+  }
+  function sumAssociate(){
+    let att=0,fat=0,ula=0;
+    associateList.querySelectorAll('.card').forEach(c=>{
+      const p = clamp(parseFloat(c.querySelector('.perc').value||'0'),0,100)/100;
+      const vAtt = parseFloat(c.querySelector('.attivo').value||'0')||0;
+      const vFat = parseFloat(c.querySelector('.fatturato').value||'0')||0;
+      const vUla = parseFloat(c.querySelector('.ula').value||'0')||0;
+      att += vAtt*p; fat += vFat*p; ula += Math.round(vUla*p);
+    });
+    return {att,fat,ula};
+  }
+
+  function setSummaryRow(key, base, coll, assoc){
+    const tot = base + coll + assoc;
+    document.getElementById(`sum_${key}_base`).textContent = key==='ula' ? fmtNum.format(base) : fmtEUR.format(base);
+    document.getElementById(`sum_${key}_coll`).textContent = key==='ula' ? fmtNum.format(coll) : fmtEUR.format(coll);
+    document.getElementById(`sum_${key}_assoc`).textContent = key==='ula' ? fmtNum.format(assoc) : fmtEUR.format(assoc);
+    document.getElementById(`sum_${key}_tot`).textContent = key==='ula' ? fmtNum.format(tot) : fmtEUR.format(tot);
+    document.getElementById(`sum_${key}_chk`).textContent = key==='ula' ? fmtNum.format(tot) : fmtEUR.format(tot);
+    return tot;
+  }
+
+  function classify(ula, fatt, attivo){
+    // Regola UE: la classe è determinata da ULA e (fatturato OR totale attivo)
+    // Soglie: Micro <10 & (<=2m OR <=2m) ; Piccola <50 & (<=10m OR <=10m) ; Media <250 & (<=50m OR <=43m) ; altrimenti Grande
+    const M2=2_000_000, M10=10_000_000, M43=43_000_000, M50=50_000_000;
+    const ok = (ulaMax, fattMax, attMax)=> ula < ulaMax && (fatt <= fattMax || attivo <= attMax);
+
+    if (ok(10, M2, M2)) return 'micro';
+    if (ok(50, M10, M10)) return 'piccola';
+    if (ok(250, M50, M43)) return 'media';
+    return 'grande';
+  }
+
+  function onCalculate(){
+    const base = { att: num('main_attivo'), fat: num('main_fatturato'), ula: parseInt(document.getElementById('main_ula').value||'0')||0 };
+    const coll = sumCollegate();
+    const assoc = sumAssociate();
+
+    const attTot = setSummaryRow('attivo', base.att, coll.att, assoc.att);
+    const fatTot = setSummaryRow('fatt', base.fat, coll.fat, assoc.fat);
+    const ulaTot = setSummaryRow('ula', base.ula, coll.ula, assoc.ula);
+
+    const size = classify(ulaTot, fatTot, attTot);
+
+    const badge = document.getElementById('badge');
+    badge.className = 'pill '+size;
+    badge.textContent = size.charAt(0).toUpperCase()+size.slice(1);
+
+    const explain = document.getElementById('explain');
+    explain.innerHTML = `ULA totali: <strong>${fmtNum.format(ulaTot)}</strong> · Fatturato totale: <strong>${fmtEUR.format(fatTot)}</strong> · Totale attivo: <strong>${fmtEUR.format(attTot)}</strong><br>
+    Classificazione determinata secondo regole UE: soglia sugli occupati <em>e</em> (fatturato <em>oppure</em> totale attivo).`;
+
+    document.getElementById('results').style.display = 'grid';
+  }
+
+  document.getElementById('calc_btn').onclick = onCalculate;
+  document.getElementById('reset_btn').onclick = ()=> window.location.reload();
+
+  // ====== (Optional) Stubs for PDF upload (to be implemented server-side) ======
+  document.getElementById('file_visura').addEventListener('change',()=>{
+    // Here you could send the PDF to a backend that extracts fields with AI/OCR
+    console.log('Visura PDF selezionata (stub).');
+  });
+  document.getElementById('file_bilancio').addEventListener('change',()=>{
+    console.log('Bilancio PDF selezionato (stub).');
+  });
+</script>
+</body>
+</html>
