@@ -1,4 +1,4 @@
-// netlify/functions/extract.js (CommonJS, NO estrazione ULA)
+// netlify/functions/extract.js
 const { Buffer } = require("node:buffer");
 const Busboy = require("busboy");
 const pdf = require("pdf-parse");
@@ -34,42 +34,48 @@ async function parseMultipart(event) {
   });
 }
 
-/** Estrattori REGEX (senza ULA) */
-function extractWithRegex(rawText) {
-  const text = (rawText || "").replace(/\r/g, "");
-  const out = { ragioneSociale: "", codiceFiscale: "", attivo: 0, fatturato: 0 };
-
-  // Ragione sociale
+/* --- Regex helper --- */
+function extractVisura(text) {
+  const out = { ragioneSociale: "", codiceFiscale: "" };
   const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
   let den =
-    (text.match(/Denominazione:\s*(.+)/i)?.[1] ?? "")
-    || lines.find(l => /SOCIET[AÀ]'?|\bS\.?R\.?L\.?\b|\bSRLS?\b|\bS\.?P\.?A\.?\b/i.test(l))
-    || "";
+    (text.match(/Denominazione:\s*(.+)/i)?.[1] ?? "") ||
+    lines.find(l => /SOCIET[AÀ]'?|\bS\.?R\.?L\.?\b|\bSRLS?\b|\bS\.?P\.?A\.?\b/i.test(l)) ||
+    "";
   if (den) out.ragioneSociale = den.replace(/\s{2,}/g, " ").trim();
 
-  // Codice fiscale (11 cifre) / Partita IVA
   const cfMatch =
     text.match(/Codice\s*fiscale[^0-9]*([0-9]{11})/i) ||
     text.match(/Partita\s*IVA[^0-9]*([0-9]{11})/i) ||
     text.match(/\b([0-9]{11})\b/);
   if (cfMatch) out.codiceFiscale = cfMatch[1];
 
-  // Attivo / Fatturato: spesso non in visura; li lasciamo 0 e li riempie l'LLM se trova nei bilanci
   return out;
 }
 
-async function callOpenAIForJSON({ text, hint }) {
+function toNum(v) {
+  if (v == null) return 0;
+  const s = String(v).replace(/[€\s]/g, "").replace(/\./g, "").replace(",", ".");
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : 0;
+}
+
+async function callOpenAIForJSON({ text, hint, fields }) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY non configurata");
 
   const snippet = (text || "").slice(0, 18000);
 
-  const system = "Estrai in JSON i campi aziendali da visure o bilanci italiani. Se un campo non è presente, metti 0 o stringa vuota. NON inventare l'ULA.";
+  // fields: array di chiavi richieste (es. ["ragioneSociale","codiceFiscale"])
+  const schema = fields.reduce((acc, k) => { acc[k] = (k === "attivo" || k === "fatturato") ? 0 : ""; return acc; }, {});
+  const schemaStr = JSON.stringify(schema);
+
+  const system = "Estrai in JSON i campi richiesti dal testo (visure/bilanci italiani). Se un campo richiesto non è presente, restituisci 0 o stringa vuota. NON inventare campi non richiesti.";
   const user = `Testo (${hint}):
 """${snippet}"""
 
-Ritorna SOLO JSON con chiavi esatte:
-{"ragioneSociale":"","codiceFiscale":"","attivo":0,"fatturato":0}`;
+Ritorna SOLO questi campi (JSON esatto):
+${schemaStr}`;
 
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -88,14 +94,7 @@ Ritorna SOLO JSON con chiavi esatte:
   }
   const data = await res.json();
   const content = data?.choices?.[0]?.message?.content || "{}";
-  try { return JSON.parse(content); } catch { return { ragioneSociale:"", codiceFiscale:"", attivo:0, fatturato:0 }; }
-}
-
-function toNum(v) {
-  if (v == null) return 0;
-  const s = String(v).replace(/[€\s]/g, "").replace(/\./g, "").replace(",", ".");
-  const n = parseFloat(s);
-  return Number.isFinite(n) ? n : 0;
+  try { return JSON.parse(content); } catch { return schema; }
 }
 
 exports.handler = async (event) => {
@@ -111,32 +110,45 @@ exports.handler = async (event) => {
     const text = pdfData.text || "";
     if (!text.trim()) return { statusCode: 422, body: "PDF senza testo. Serve OCR (scannerizzato)." };
 
-    // 1) Regex base
-    let out = extractWithRegex(text);
+    let result = { ragioneSociale:"", codiceFiscale:"", attivo:0, fatturato:0, ula:0 };
 
-    // 2) Completa buchi con LLM (senza ULA)
-    if (!out.ragioneSociale || !out.codiceFiscale || (out.attivo === 0 && out.fatturato === 0)) {
-      try {
-        const ai = await callOpenAIForJSON({ text, hint: kind });
-        out = {
-          ragioneSociale: out.ragioneSociale || (ai.ragioneSociale || ""),
-          codiceFiscale: out.codiceFiscale || (ai.codiceFiscale || ""),
-          attivo: out.attivo || toNum(ai.attivo),
-          fatturato: out.fatturato || toNum(ai.fatturato)
-        };
-      } catch (e) {
-        console.warn("Fallback LLM non disponibile:", e.message);
+    if (kind === "visura") {
+      // Solo Ragione/CF
+      const rx = extractVisura(text);
+      result.ragioneSociale = rx.ragioneSociale || "";
+      result.codiceFiscale = rx.codiceFiscale || "";
+      // Se mancano, tenta LLM solo per quei 2 campi
+      if (!result.ragioneSociale || !result.codiceFiscale) {
+        try {
+          const ai = await callOpenAIForJSON({ text, hint: kind, fields: ["ragioneSociale","codiceFiscale"] });
+          result.ragioneSociale ||= (ai.ragioneSociale || "");
+          result.codiceFiscale ||= (ai.codiceFiscale || "");
+        } catch (e) { /* ignora fallback */ }
       }
+      // attivo/fatturato restano 0
+    } else if (kind === "bilancio") {
+      // Solo Attivo/Fatturato via LLM (i numeri nei bilanci variano molto di layout)
+      try {
+        const ai = await callOpenAIForJSON({ text, hint: kind, fields: ["attivo","fatturato"] });
+        result.attivo = toNum(ai.attivo);
+        result.fatturato = toNum(ai.fatturato);
+      } catch (e) { /* ignora fallback */ }
+      // ragione/cf lasciati vuoti
+    } else {
+      // Fallback generico: tenta tutto
+      // 1) visura basic
+      const rx = extractVisura(text);
+      result.ragioneSociale = rx.ragioneSociale || "";
+      result.codiceFiscale = rx.codiceFiscale || "";
+      // 2) ai per numeri
+      try {
+        const ai = await callOpenAIForJSON({ text, hint: kind, fields: ["ragioneSociale","codiceFiscale","attivo","fatturato"] });
+        result.ragioneSociale ||= (ai.ragioneSociale || "");
+        result.codiceFiscale ||= (ai.codiceFiscale || "");
+        result.attivo = result.attivo || toNum(ai.attivo);
+        result.fatturato = result.fatturato || toNum(ai.fatturato);
+      } catch (e) { /* ignora fallback */ }
     }
-
-    // ULA sempre 0: deve essere inserita manualmente nel frontend
-    const result = {
-      ragioneSociale: (out.ragioneSociale || "").toString().trim(),
-      codiceFiscale: (out.codiceFiscale || "").toString().trim(),
-      attivo: toNum(out.attivo),
-      fatturato: toNum(out.fatturato),
-      ula: 0
-    };
 
     return { statusCode: 200, headers: { "Content-Type": "application/json" }, body: JSON.stringify(result) };
   } catch (err) {

@@ -30,7 +30,10 @@
     .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
     @media (max-width:800px){.row{grid-template-columns:1fr}}
     label{display:block;font-weight:600;margin:2px 0 6px}
-    input[type="text"],input[type="number"],input[type="file"],select, textarea {width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink); font-size:16px;}
+    /* tutti i campi + 16px per evitare zoom su iOS */
+    input[type="text"],input[type="number"],input[type="file"],select,textarea{
+      width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);font-size:16px;
+    }
     .inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     .actions{display:flex;gap:10px;flex-wrap:wrap}
     button{border:1px solid var(--line);background:var(--brand);color:white;padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:700}
@@ -97,9 +100,9 @@
         </div>
         <div>
           <label>ULA</label>
-          <input id="main_ula" type="number" min="0" step="1" placeholder="0" />
+          <input id="main_ula" type="number" min="0" step="0.01" placeholder="0" />
           <p class="tiny muted" style="margin-top:6px">
-            <strong>Cos’è l’ULA</strong>: Unità Lavorative Annue = numero medio di occupati equivalenti a tempo pieno nell’anno (inclusi part‑time pro‑quota).
+            <strong>Cos’è l’ULA</strong>: Unità Lavorative Annue = numero medio di occupati equivalenti a tempo pieno nell’anno (inclusi part-time pro-quota). Inseriscila manualmente.
           </p>
         </div>
       </div>
@@ -110,11 +113,12 @@
         <div>
           <label>Carica visura (PDF)</label>
           <input id="file_visura" type="file" accept="application/pdf" />
-          <p class="tiny" id="pdf_hint">Auto‑compila Ragione sociale, Codice fiscale e, se presente nel documento, Totale attivo / Fatturato. L’ULA va sempre inserito a mano.</p>
+          <p class="tiny" id="pdf_hint_visura">Dalla visura si auto-compilano solo <strong>Ragione sociale</strong> e <strong>Codice fiscale</strong>.</p>
         </div>
         <div>
           <label>Carica bilancio (PDF)</label>
           <input id="file_bilancio" type="file" accept="application/pdf" />
+          <p class="tiny">Carica <strong>l’ultimo bilancio approvato e depositato</strong>. Dal bilancio si auto-compilano <strong>Totale attivo</strong> e <strong>Fatturato</strong>.</p>
         </div>
       </div>
     </section>
@@ -133,8 +137,7 @@
           </div>
         </div>
 
-        <!-- Spiegazione sempre visibile -->
-        <div id="collegate_help" class="tiny muted" style="display:block">
+        <div class="tiny muted" style="display:block">
           <strong>Impresa collegata – sintesi</strong><br>
           • Detieni &gt; 50% di un’altra impresa <em>oppure</em> sei partecipato &gt; 50%<br>
           • Il controllo può derivare anche da persone/gruppi che agiscono insieme e: controllo in entrambe <em>e</em> stesso mercato (primi 2 ATECO) <em>oppure</em> fatturazioni reciproche ≥ 25%.
@@ -162,11 +165,10 @@
           </div>
         </div>
 
-        <!-- Spiegazione sempre visibile -->
-        <div id="associate_help" class="tiny muted" style="display:block">
+        <div class="tiny muted" style="display:block">
           <strong>Impresa associata – sintesi</strong><br>
           • Detieni almeno il 25% e non oltre il 50% in un’altra impresa <em>oppure</em> sei partecipato tra il 25% e il 50%.<br>
-          • I dati economici si considerano <em>pro‑quota</em> in base alla percentuale.
+          • I dati economici si considerano <em>pro-quota</em> in base alla percentuale.
         </div>
 
         <div id="associate_wrap" style="display:none">
@@ -190,7 +192,7 @@
       <div class="divider"></div>
 
       <h3 class="section-title">Riepilogo <span class="emoji">📊</span></h3>
-      <div class="tiny muted" style="margin-bottom:8px">Valori in EUR. Le associate sono sommate pro‑quota.</div>
+      <div class="tiny muted" style="margin-bottom:8px">Valori in EUR (a 2 decimali). Le associate sono sommate pro-quota.</div>
 
       <div class="table-wrap">
         <table>
@@ -256,9 +258,9 @@
 
 <script>
   // ====== Helpers ======
-  const fmtEUR = new Intl.NumberFormat('it-IT', { style:'currency', currency:'EUR', maximumFractionDigits: 0 });
+  // EUR a 2 decimali
+  const fmtEUR = new Intl.NumberFormat('it-IT', { style:'currency', currency:'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmtUla = new Intl.NumberFormat('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-  const fmtInt = new Intl.NumberFormat('it-IT');
   const clamp = (n,min,max)=>Math.min(Math.max(n,min),max);
   const val = id => document.getElementById(id).value.trim();
   const num = id => {
@@ -267,20 +269,11 @@
     return isNaN(n) ? 0 : n;
   };
 
-  // Compila SOLO i campi non ULA
-  function populateForm(data){
-    console.log('JSON estratto:', data);
+  // Compila selettivo in base al "kind"
+  function populateForm(data, kind){
+    console.log('JSON estratto:', data, 'kind:', kind);
     if(!data || typeof data!=='object') return false;
     let filled = false;
-
-    if(data.ragioneSociale && data.ragioneSociale.trim()){
-      document.getElementById('main_ragione').value = data.ragioneSociale.trim();
-      filled = true;
-    }
-    if(data.codiceFiscale && data.codiceFiscale.trim()){
-      document.getElementById('main_cf').value = data.codiceFiscale.trim();
-      filled = true;
-    }
 
     const cleanNum = v => {
       if(v==null) return null;
@@ -289,12 +282,38 @@
       return Number.isFinite(n) ? n : null;
     };
 
-    const att = cleanNum(data.attivo);
-    if(att!=null){ document.getElementById('main_attivo').value = att; filled = true; }
-    const fat = cleanNum(data.fatturato);
-    if(fat!=null){ document.getElementById('main_fatturato').value = fat; filled = true; }
+    if(kind === 'visura'){
+      if(data.ragioneSociale && data.ragioneSociale.trim()){
+        document.getElementById('main_ragione').value = data.ragioneSociale.trim();
+        filled = true;
+      }
+      if(data.codiceFiscale && data.codiceFiscale.trim()){
+        document.getElementById('main_cf').value = data.codiceFiscale.trim();
+        filled = true;
+      }
+      // ignora attivo/fatturato/ula
+    } else if(kind === 'bilancio'){
+      const att = cleanNum(data.attivo);
+      if(att!=null){ document.getElementById('main_attivo').value = att; filled = true; }
+      const fat = cleanNum(data.fatturato);
+      if(fat!=null){ document.getElementById('main_fatturato').value = fat; filled = true; }
+      // ignora ragione/cf/ula
+    } else {
+      // fallback generico (come sicurezza)
+      if(data.ragioneSociale && data.ragioneSociale.trim()){
+        document.getElementById('main_ragione').value = data.ragioneSociale.trim();
+        filled = true;
+      }
+      if(data.codiceFiscale && data.codiceFiscale.trim()){
+        document.getElementById('main_cf').value = data.codiceFiscale.trim();
+        filled = true;
+      }
+      const att = cleanNum(data.attivo);
+      if(att!=null){ document.getElementById('main_attivo').value = att; filled = true; }
+      const fat = cleanNum(data.fatturato);
+      if(fat!=null){ document.getElementById('main_fatturato').value = fat; filled = true; }
+    }
 
-    // ULA: ignorato (sempre inserito manualmente)
     return filled;
   }
 
@@ -313,7 +332,7 @@
       if(!res.ok) throw new Error('Errore server: '+res.status);
 
       const json = await res.json();
-      const ok = populateForm(json);
+      const ok = populateForm(json, kind);
       alert(ok ? 'Dati estratti e compilati!' : 'Nessun dato utile estratto dal PDF.');
     }catch(err){
       console.error(err);
@@ -337,7 +356,7 @@
         <div><label>Codice fiscale</label><input type="text" class="cf" placeholder="XXXXXXXXXXXX"></div>
         <div><label>Totale attivo (EUR)</label><input type="number" min="0" step="0.01" class="attivo" placeholder="0"></div>
         <div><label>Fatturato (EUR)</label><input type="number" min="0" step="0.01" class="fatturato" placeholder="0"></div>
-        <div><label>ULA</label><input type="number" min="0" step="1" class="ula" placeholder="0"></div>
+        <div><label>ULA</label><input type="number" min="0" step="0.01" class="ula" placeholder="0"></div>
       </div>
     </div>`;
 
@@ -431,13 +450,13 @@
     const fatP = card.querySelector('.fatturato_prop');
     const ulaP = card.querySelector('.ula_prop');
     const recompute = ()=>{
-      const p = clamp(parseFloat(perc.value||'0'),0,100)/100;
+      const p = clamp(parseFloat(String(perc.value||'0').replace(',', '.')) || 0, 0, 100) / 100;
       const attivo = parseFloat(att.value||'0')||0;
       const fatturato = parseFloat(fat.value||'0')||0;
       const u = parseFloat(ula.value||'0')||0;
       attP.value = fmtEUR.format(attivo*p);
       fatP.value = fmtEUR.format(fatturato*p);
-      ulaP.value = fmtUla.format(u*p); // << decimali
+      ulaP.value = fmtUla.format(u*p);
     };
     [perc,att,fat,ula].forEach(i=> i.addEventListener('input', recompute));
     recompute();
@@ -478,7 +497,7 @@
       const vAtt = parseFloat(c.querySelector('.attivo').value||'0')||0;
       const vFat = parseFloat(c.querySelector('.fatturato').value||'0')||0;
       const vUla = parseFloat(c.querySelector('.ula').value||'0')||0;
-      att += vAtt*p; fat += vFat*p; ula += vUla*p; // << niente Math.round
+      att += vAtt*p; fat += vFat*p; ula += vUla*p;
     });
     return {att,fat,ula};
   }
@@ -556,7 +575,7 @@
       const cf = (c.querySelector('.cf')?.value||'').trim();
       const att = parseFloat(c.querySelector('.attivo')?.value||'0')||0;
       const fat = parseFloat(c.querySelector('.fatturato')?.value||'0')||0;
-      const ula = parseFloat(c.querySelector('.ula')?.value||'0')||0; // decimali
+      const ula = parseFloat(c.querySelector('.ula')?.value||'0')||0;
       if(r || cf || att || fat || ula) out.push({r,cf,att,fat,ula});
     });
     return out;
