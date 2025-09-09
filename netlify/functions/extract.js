@@ -67,100 +67,73 @@ function extractVisura(text) {
   return out;
 }
 
-/* Ricavi CE A)1) – prendi SOLO l'importo dell'anno più recente, ignorando il "1)" della voce */
-/* Ricavi CE A)1) – lettura POSIZIONALE: prende SOLO l'importo della colonna dell'anno più recente */
+/* Ricavi CE A)1) – scelta POSIZIONALE: numero più vicino alla colonna dell'anno più recente */
 function extractRicaviVendite(text) {
   const all = (text || "").replace(/\u00A0/g, " ");
   const lines = all.split(/\r?\n/);
 
-  // 1) Individua l'header con le due date e salva le colonne
-  //    Copre sia "31-12-2024" che "31.12.2024"
-  let headerIdx = -1;
+  // 1) Header con due date e posizioni di colonna
   let dateLeft = null, dateRight = null;
-  let colLeft = 0, colRight = 0; // indici di colonna (posizione carattere nella riga)
+  let colLeft = 0, colRight = 0;
+  const reDates = /(\d{2}[-\.]\d{2}[-\.](\d{4}))/g;
 
-  const dateRe = /(\d{2}[-\.]\d{2}[-\.](\d{4}))/g;
-  for (let i = 0; i < lines.length; i++) {
-    const L = lines[i];
-    const m = [...L.matchAll(dateRe)];
-    if (m.length >= 2 && /CONTO\s+ECONOMICO/i.test(L)) {
-      // prendi le prime due date trovate e le loro posizioni
-      const d1 = m[0][1], y1 = parseInt(m[0][2], 10), p1 = L.indexOf(d1);
-      const d2 = m[1][1], y2 = parseInt(m[1][2], 10), p2 = L.indexOf(d2);
-      // ordina sinistra/destra
-      if (p1 <= p2) {
-        dateLeft = { str: d1, year: y1 };  colLeft = p1;
-        dateRight = { str: d2, year: y2 }; colRight = p2;
-      } else {
-        dateLeft = { str: d2, year: y2 };  colLeft = p2;
-        dateRight = { str: d1, year: y1 }; colRight = p1;
-      }
-      headerIdx = i;
+  for (const L of lines) {
+    const mDates = [...L.matchAll(reDates)];
+    if (mDates.length >= 2 && /CONTO\s+ECONOMICO/i.test(L)) {
+      const d1 = mDates[0][1], y1 = parseInt(mDates[0][2], 10), p1 = L.indexOf(d1);
+      const d2 = mDates[1][1], y2 = parseInt(mDates[1][2], 10), p2 = L.indexOf(d2);
+      if (p1 <= p2) { dateLeft = {year:y1};  colLeft = p1; dateRight = {year:y2}; colRight = p2; }
+      else          { dateLeft = {year:y2};  colLeft = p2; dateRight = {year:y1}; colRight = p1; }
       break;
     }
   }
-  if (headerIdx === -1 || !dateLeft || !dateRight) {
-    // se non trovo header, passo al vecchio metodo "pattern"
-    return legacyRicaviVendite(all);
-  }
+  if (!dateLeft || !dateRight) return legacyRicaviVendite(all); // fallback se non trovo l'header
 
-  // quale colonna è l'anno più recente?
-  const useLeft = dateLeft.year >= dateRight.year; // spesso l'anno più recente è a sinistra
+  const useLeft   = dateLeft.year >= dateRight.year;   // anno più recente
   const targetCol = useLeft ? colLeft : colRight;
 
-  // helper: estrae un "numero" da un segmento di testo
-  const toNumLocal = (s) => {
-    if (!s) return NaN;
-    const cleaned = s.replace(/[^\d.,\s]/g, "").replace(/\s+/g, " ").trim();
-    // prendi il PRIMO token numerico con migliaia/decimali (così eviti il semplice "1" della voce)
-    const token = cleaned.match(/(\d{1,3}(?:[.\s]\d{3})*(?:,\d+)?|\d{4,}(?:,\d+)?)/);
-    if (!token) return NaN;
-    return toNum(token[1]);
+  // helper: trova TUTTI i numeri sulla riga e sceglie quello con centro più vicino a targetCol
+  const reNum = /(\d{1,3}(?:[.\s]\d{3})*(?:,\d+)?|\d{4,}(?:,\d+)?)/g; // niente "1" secco
+  const closestOnLine = (L) => {
+    let best = null, bestDist = Infinity;
+    for (const m of L.matchAll(reNum)) {
+      const token = m[1];
+      const n = toNum(token);
+      if (!Number.isFinite(n) || n === 0) continue;
+      const start = m.index ?? L.indexOf(token);
+      const center = start + token.length / 2;
+      const dist = Math.abs(center - targetCol);
+      if (dist < bestDist) { bestDist = dist; best = n; }
+    }
+    return best; // null se niente
   };
 
-  // 2) Trova la riga "1) Ricavi delle vendite e delle prestazioni"
+  // 2) Prendi la riga della voce "1) Ricavi ..."
   const rowIdx = lines.findIndex(l => /1\)\s*Ricavi\s+delle\s+vendite\s+e\s+delle\s+prestazioni/i.test(l));
   if (rowIdx === -1) return legacyRicaviVendite(all);
 
-  // 3) Prova sulla stessa riga e poi su 1-2 righe successive (alcuni PDF mettono i numeri sotto)
+  // 3) Prova sulla riga e poi su 1-2 righe sotto, ma scegli SEMPRE il numero più vicino alla colonna
   for (let off = 0; off <= 2; off++) {
     const i = rowIdx + off;
     if (i >= lines.length) break;
-    const L = lines[i];
-
-    // prendi una "finestra" attorno alla colonna target (evita di leggere il "1)" a sinistra)
-    const start = Math.max(0, targetCol - 10);
-    const end = Math.min(L.length, targetCol + 20);
-    const slice = L.slice(start, end);
-
-    const val = toNumLocal(slice);
-    if (Number.isFinite(val) && val > 0) return val;
+    const candidate = closestOnLine(lines[i]);
+    if (Number.isFinite(candidate)) return candidate;
   }
 
-  // 4) Se ancora niente, ripiega al vecchio estrattore regex (comunque robusto)
+  // 4) Fallback finale
   return legacyRicaviVendite(all);
 }
 
-/* Estrattore "legacy" (regex) come fallback finale */
+/* Fallback regex "storico" */
 function legacyRicaviVendite(t) {
-  // prova due numeri sulla stessa riga
   let m = t.match(/1\)\s*Ricavi\s+delle\s+vendite\s+e\s+delle\s+prestazioni[^\d\-]*([0-9\.\s,]+)\s+([0-9\.\s,]+)/i);
-  if (m) {
-    // senza header non so quale anno sia più recente: prendo il PRIMO
-    return toNum(m[1]);
-  }
-  // variante più lasca
+  if (m) return toNum(m[1]);
   m = t.match(/A\)\s*VALORE\s+DELLA\s+PRODUZIONE[^]*?1\)\s*R[^\n]*?([0-9\.\s,]+)\s+([0-9\.\s,]+)/ims);
   if (m) return toNum(m[1]);
-
-  // singolo numero dopo la voce
   m = t.match(/(^|\n)\s*1\)\s*Ricavi\s+delle\s+vendite\s+e\s+delle\s+prestazioni[^\d\-]*([0-9\.\s,]+)\b/ims);
   if (m) return toNum(m[2]);
-
-  // numero sulla riga successiva
   m = t.match(/1\)\s*Ricavi\s+delle\s+vendite\s+e\s+delle\s+prestazioni[^\n]*\n\s*([0-9\.\s,]+)\b/ims);
   if (m) return toNum(m[1]);
-
   return 0;
 }
 
