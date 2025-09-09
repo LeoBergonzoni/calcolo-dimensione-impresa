@@ -67,26 +67,50 @@ function extractVisura(text) {
   return out;
 }
 
-/* Ricavi CE A)1) - regex abbastanza robusta su PDF testuali */
+/* Ricavi CE A)1) - scegli SOLO l'anno più recente se ci sono più colonne */
 function extractRicaviVendite(text) {
-  const t = text.replace(/\u00A0/g, " ");
-  // Casi frequenti: “A) Valore della produzione … 1) Ricavi delle vendite e delle prestazioni … 1.234.567”
-  const rx1 =
-    /A\)\s*VALORE\s+DELLA\s+PRODUZIONE[^]*?1\)\s*R(ICAVI|\.)[^0-9\-]*([0-9\.\s,]+)\b/ims;
-  const m1 = t.match(rx1);
-  if (m1 && m1[2]) return toNum(m1[2]);
+  const t = (text || "").replace(/\u00A0/g, " ");
 
-  // Altri layout: riga isolata “1) Ricavi delle vendite e delle prestazioni …… 1.234.567”
-  const rx2 =
-    /(^|\n)\s*1\)\s*Ricavi\s+delle\s+vendite\s+e\s+delle\s+prestazioni[^0-9\-]*([0-9\.\s,]+)\b/ims;
-  const m2 = t.match(rx2);
-  if (m2 && m2[2]) return toNum(m2[2]);
+  // 1) Prova a capire qual è la colonna dell'anno più recente leggendo l'header del CE
+  //    Esempio header: "CONTO ECONOMICO 31-12-2024 31-12-2023"
+  let latestIndex = 0; // 0 = prima colonna (a sinistra), 1 = seconda colonna (a destra)
+  const hdr = t.match(/CONTO\s+ECONOMICO\s+(\d{2}-\d{2}-(\d{4}))\s+(\d{2}-\d{2}-(\d{4}))/i);
+  if (hdr && hdr[2] && hdr[4]) {
+    const y1 = parseInt(hdr[2], 10);
+    const y2 = parseInt(hdr[4], 10);
+    latestIndex = y1 >= y2 ? 0 : 1;
+  }
 
-  // Ultimo tentativo: tabella con numero nella riga successiva
-  const rx3 =
-    /1\)\s*Ricavi\s+delle\s+vendite\s+e\s+delle\s+prestazioni[^\n]*\n\s*([0-9\.\s,]+)\b/ims;
-  const m3 = t.match(rx3);
-  if (m3 && m3[1]) return toNum(m3[1]);
+  // 2) Casi più comuni: riga con due numeri (due colonne anno corrente/precedente)
+  //    Prendi il gruppo [1] per la prima colonna e [2] per la seconda, poi scegli latestIndex
+  const row2col = t.match(
+    /1\)\s*Ricavi\s+delle\s+vendite\s+e\s+delle\s+prestazioni[^\d\-]*([0-9\.\s,]+)\s+([0-9\.\s,]+)/i
+  );
+  if (row2col) {
+    const pick = row2col[1 + latestIndex];
+    return toNum(pick);
+  }
+
+  // 3) Layout con altro testo in mezzo ma comunque due colonne numeriche sulla riga
+  const row2colLoose = t.match(
+    /A\)\s*VALORE\s+DELLA\s+PRODUZIONE[^]*?1\)\s*R[^\n]*?([0-9\.\s,]+)\s+([0-9\.\s,]+)/ims
+  );
+  if (row2colLoose) {
+    const pick = row2colLoose[1 + latestIndex];
+    return toNum(pick);
+  }
+
+  // 4) Layout a UNA colonna: prendi il singolo numero dopo la voce A)1)
+  const singleCol = t.match(
+    /(^|\n)\s*1\)\s*Ricavi\s+delle\s+vendite\s+e\s+delle\s+prestazioni[^\d\-]*([0-9\.\s,]+)\b/ims
+  );
+  if (singleCol) return toNum(singleCol[2]);
+
+  // 5) Ultimo tentativo: numero su riga successiva
+  const nextLine = t.match(
+    /1\)\s*Ricavi\s+delle\s+vendite\s+e\s+delle\s+prestazioni[^\n]*\n\s*([0-9\.\s,]+)\b/ims
+  );
+  if (nextLine) return toNum(nextLine[1]);
 
   return 0;
 }
@@ -105,7 +129,7 @@ async function callOpenAIForJSON({ text, kind, fields }) {
   // Nota pedagogica per il bilancio: fatturato = CE A)1) Ricavi vendite/prestazioni
   const hintBilancio =
     kind === "bilancio"
-      ? "ATTENZIONE: 'fatturato' va inteso come Conto Economico voce A)1) Ricavi delle vendite e delle prestazioni (NON il totale valore della produzione) solo relativo alla colonna dell'ultimo anno presente."
+      ? "ATTENZIONE: 'fatturato' = Conto Economico voce «A) 1) Ricavi delle vendite e delle prestazioni». Se sulla riga sono presenti più esercizi (es. 2024 e 2023), restituisci SOLO l'importo dell'anno più recente (la colonna più recente/di sinistra). NON usare il 'Totale valore della produzione'."
       : "";
 
   const user = `Testo (${kind}):
