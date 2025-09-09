@@ -67,75 +67,77 @@ function extractVisura(text) {
   return out;
 }
 
-/* Ricavi CE A)1) – scelta POSIZIONALE: numero più vicino alla colonna dell'anno più recente */
-function extractRicaviVendite(text) {
-  const all = (text || "").replace(/\u00A0/g, " ");
-  const lines = all.split(/\r?\n/);
-
-  // 1) Header con due date e posizioni di colonna
-  let dateLeft = null, dateRight = null;
-  let colLeft = 0, colRight = 0;
-  const reDates = /(\d{2}[-\.]\d{2}[-\.](\d{4}))/g;
-
-  for (const L of lines) {
-    const mDates = [...L.matchAll(reDates)];
-    if (mDates.length >= 2 && /CONTO\s+ECONOMICO/i.test(L)) {
-      const d1 = mDates[0][1], y1 = parseInt(mDates[0][2], 10), p1 = L.indexOf(d1);
-      const d2 = mDates[1][1], y2 = parseInt(mDates[1][2], 10), p2 = L.indexOf(d2);
-      if (p1 <= p2) { dateLeft = {year:y1};  colLeft = p1; dateRight = {year:y2}; colRight = p2; }
-      else          { dateLeft = {year:y2};  colLeft = p2; dateRight = {year:y1}; colRight = p1; }
-      break;
+/* Ricavi CE A)1) – prendi SOLO importi “plausibili” sulla riga della voce (o quella sotto).
+   Plausibile = contiene separatori (.,) oppure almeno 3 cifre contigue. */
+   function extractRicaviVendite(text) {
+    const all = (text || "").replace(/\u00A0/g, " ");
+    const lines = all.split(/\r?\n/);
+  
+    const isPlausibleToken = (s) => {
+      if (!s) return false;
+      const hasSep = /[.,]/.test(s);
+      const digits = s.replace(/\D/g, "");
+      return hasSep || digits.length >= 3; // esclude “1”, “5”, ecc.
+    };
+    const toTokens = (s) =>
+      [...(s || "").matchAll(/(\d{1,3}(?:[.\s]\d{3})*(?:,\d+)?|\d{4,}(?:,\d+)?)/g)].map(m => m[1]);
+  
+    // 1) Trova la riga della voce
+    const rowIdx = lines.findIndex(l => /1\)\s*Ricavi\s+delle\s+vendite\s+e\s+delle\s+prestazioni/i.test(l));
+    if (rowIdx === -1) return legacyRicaviVenditeFiltered(all, isPlausibleToken);
+  
+    // 2) Prendi la riga e, se serve, la successiva
+    const candidates = [];
+    const row = lines[rowIdx] || "";
+    const rowNext = lines[rowIdx + 1] || "";
+  
+    // prendi solo la parte dopo la descrizione (così eviti di catturare il “1” della voce)
+    const afterLabel = row.replace(/.*1\)\s*Ricavi\s+delle\s+vendite\s+e\s+delle\s+prestazioni/i, " ");
+    candidates.push(...toTokens(afterLabel).filter(isPlausibleToken));
+  
+    // se sulla riga non c’è nulla di plausibile, prova la riga sotto
+    if (candidates.length === 0) {
+      candidates.push(...toTokens(rowNext).filter(isPlausibleToken));
     }
+  
+    // 3) Se ci sono due importi (due colonne), prendi il primo (tipicamente l’anno più recente)
+    if (candidates.length >= 2) return toNum(candidates[0]);
+    if (candidates.length === 1) return toNum(candidates[0]);
+  
+    // 4) Fallback “storico” ma filtrato
+    return legacyRicaviVenditeFiltered(all, isPlausibleToken);
   }
-  if (!dateLeft || !dateRight) return legacyRicaviVendite(all); // fallback se non trovo l'header
-
-  const useLeft   = dateLeft.year >= dateRight.year;   // anno più recente
-  const targetCol = useLeft ? colLeft : colRight;
-
-  // helper: trova TUTTI i numeri sulla riga e sceglie quello con centro più vicino a targetCol
-  const reNum = /(\d{1,3}(?:[.\s]\d{3})*(?:,\d+)?|\d{4,}(?:,\d+)?)/g; // niente "1" secco
-  const closestOnLine = (L) => {
-    let best = null, bestDist = Infinity;
-    for (const m of L.matchAll(reNum)) {
-      const token = m[1];
-      const n = toNum(token);
-      if (!Number.isFinite(n) || n === 0) continue;
-      const start = m.index ?? L.indexOf(token);
-      const center = start + token.length / 2;
-      const dist = Math.abs(center - targetCol);
-      if (dist < bestDist) { bestDist = dist; best = n; }
+  
+  /* Fallback regex classico, ma filtrando i token non plausibili (niente “1”) */
+  function legacyRicaviVenditeFiltered(t, isPlausibleToken) {
+    let m;
+  
+    // due colonne sulla stessa riga
+    m = t.match(/1\)\s*Ricavi\s+delle\s+vendite\s+e\s+delle\s+prestazioni[^\n]*?([0-9\.\s,]+)\s+([0-9\.\s,]+)/i);
+    if (m) {
+      const a = (m[1] || "").trim(), b = (m[2] || "").trim();
+      const pick = isPlausibleToken(a) ? a : (isPlausibleToken(b) ? b : "");
+      if (pick) return toNum(pick);
     }
-    return best; // null se niente
-  };
-
-  // 2) Prendi la riga della voce "1) Ricavi ..."
-  const rowIdx = lines.findIndex(l => /1\)\s*Ricavi\s+delle\s+vendite\s+e\s+delle\s+prestazioni/i.test(l));
-  if (rowIdx === -1) return legacyRicaviVendite(all);
-
-  // 3) Prova sulla riga e poi su 1-2 righe sotto, ma scegli SEMPRE il numero più vicino alla colonna
-  for (let off = 0; off <= 2; off++) {
-    const i = rowIdx + off;
-    if (i >= lines.length) break;
-    const candidate = closestOnLine(lines[i]);
-    if (Number.isFinite(candidate)) return candidate;
+  
+    // variante più lasca con “A) VALORE DELLA PRODUZIONE … 1) Ricavi …”
+    m = t.match(/A\)\s*VALORE\s+DELLA\s+PRODUZIONE[^]*?1\)\s*R[^\n]*?([0-9\.\s,]+)\s+([0-9\.\s,]+)/ims);
+    if (m) {
+      const a = (m[1] || "").trim(), b = (m[2] || "").trim();
+      const pick = isPlausibleToken(a) ? a : (isPlausibleToken(b) ? b : "");
+      if (pick) return toNum(pick);
+    }
+  
+    // numero singolo dopo la voce (stessa riga)
+    m = t.match(/(^|\n)\s*1\)\s*Ricavi\s+delle\s+vendite\s+e\s+delle\s+prestazioni[^\d\-]*([0-9\.\s,]+)\b/ims);
+    if (m && isPlausibleToken(m[2])) return toNum(m[2]);
+  
+    // numero su riga successiva
+    m = t.match(/1\)\s*Ricavi\s+delle\s+vendite\s+e\s+delle\s+prestazioni[^\n]*\n\s*([0-9\.\s,]+)\b/ims);
+    if (m && isPlausibleToken(m[1])) return toNum(m[1]);
+  
+    return 0;
   }
-
-  // 4) Fallback finale
-  return legacyRicaviVendite(all);
-}
-
-/* Fallback regex "storico" */
-function legacyRicaviVendite(t) {
-  let m = t.match(/1\)\s*Ricavi\s+delle\s+vendite\s+e\s+delle\s+prestazioni[^\d\-]*([0-9\.\s,]+)\s+([0-9\.\s,]+)/i);
-  if (m) return toNum(m[1]);
-  m = t.match(/A\)\s*VALORE\s+DELLA\s+PRODUZIONE[^]*?1\)\s*R[^\n]*?([0-9\.\s,]+)\s+([0-9\.\s,]+)/ims);
-  if (m) return toNum(m[1]);
-  m = t.match(/(^|\n)\s*1\)\s*Ricavi\s+delle\s+vendite\s+e\s+delle\s+prestazioni[^\d\-]*([0-9\.\s,]+)\b/ims);
-  if (m) return toNum(m[2]);
-  m = t.match(/1\)\s*Ricavi\s+delle\s+vendite\s+e\s+delle\s+prestazioni[^\n]*\n\s*([0-9\.\s,]+)\b/ims);
-  if (m) return toNum(m[1]);
-  return 0;
-}
 
 async function callOpenAIForJSON({ text, kind, fields }) {
   const apiKey = process.env.OPENAI_API_KEY;
