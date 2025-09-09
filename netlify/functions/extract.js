@@ -105,7 +105,7 @@ async function callOpenAIForJSON({ text, kind, fields }) {
   // Nota pedagogica per il bilancio: fatturato = CE A)1) Ricavi vendite/prestazioni
   const hintBilancio =
     kind === "bilancio"
-      ? "ATTENZIONE: 'fatturato' va inteso come Conto Economico voce A)1) Ricavi delle vendite e delle prestazioni (NON il totale valore della produzione)."
+      ? "ATTENZIONE: 'fatturato' va inteso come Conto Economico voce A)1) Ricavi delle vendite e delle prestazioni (NON il totale valore della produzione) solo relativo alla colonna dell'ultimo anno presente."
       : "";
 
   const user = `Testo (${kind}):
