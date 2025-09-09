@@ -67,31 +67,43 @@ function extractVisura(text) {
   return out;
 }
 
-/* Ricavi CE A)1) - scegli SOLO l'anno più recente se ci sono più colonne */
+/* Ricavi CE A)1) - prendi SOLO l'importo dell'anno più recente anche se i numeri sono "attaccati" */
 function extractRicaviVendite(text) {
   const t = (text || "").replace(/\u00A0/g, " ");
 
-  // 1) Prova a capire qual è la colonna dell'anno più recente leggendo l'header del CE
-  //    Esempio header: "CONTO ECONOMICO 31-12-2024 31-12-2023"
-  let latestIndex = 0; // 0 = prima colonna (a sinistra), 1 = seconda colonna (a destra)
-  const hdr = t.match(/CONTO\s+ECONOMICO\s+(\d{2}-\d{2}-(\d{4}))\s+(\d{2}-\d{2}-(\d{4}))/i);
+  // 1) Decidi quale colonna è l'anno più recente leggendo l'header del CE
+  //    Esempi: "CONTO ECONOMICO 31-12-2024 31-12-2023" oppure "31.12.2024 31.12.2023"
+  let latestIndex = 0; // 0 = prima colonna (sx), 1 = seconda (dx)
+  const hdr = t.match(/CONTO\s+ECONOMICO\s+(\d{2}[-\.]\d{2}[-\.](\d{4}))\s+(\d{2}[-\.]\d{2}[-\.](\d{4}))/i);
   if (hdr && hdr[2] && hdr[4]) {
     const y1 = parseInt(hdr[2], 10);
     const y2 = parseInt(hdr[4], 10);
-    latestIndex = y1 >= y2 ? 0 : 1;
+    latestIndex = y1 >= y2 ? 0 : 1; // spesso l'anno più recente è la prima colonna a sx
   }
 
-  // 2) Casi più comuni: riga con due numeri (due colonne anno corrente/precedente)
-  //    Prendi il gruppo [1] per la prima colonna e [2] per la seconda, poi scegli latestIndex
-  const row2col = t.match(
-    /1\)\s*Ricavi\s+delle\s+vendite\s+e\s+delle\s+prestazioni[^\d\-]*([0-9\.\s,]+)\s+([0-9\.\s,]+)/i
-  );
-  if (row2col) {
-    const pick = row2col[1 + latestIndex];
-    return toNum(pick);
+  // 2) Isola la riga (e, se serve, la successiva) della voce "1) Ricavi delle vendite e delle prestazioni"
+  const lineMatch = t.match(/1\)\s*Ricavi\s+delle\s+vendite\s+e\s+delle\s+prestazioni.*(?:\n.*)?/i);
+  if (lineMatch) {
+    const lineBlock = lineMatch[0];
+
+    // Estrai TUTTI i numeri sul blocco (accetta formati "433.230", "397,471", "433 230")
+    const nums = [];
+    const reNum = /(?<!\d)(\d(?:[\d\.\s,]*\d)?)(?!\d)/g;
+    let m;
+    while ((m = reNum.exec(lineBlock)) !== null) {
+      // normalizza ogni numero singolarmente (così evitiamo la concatenazione)
+      const raw = m[1];
+      const n = toNum(raw);
+      if (n) nums.push(n);
+    }
+
+    // Se ci sono almeno 2 numeri, scegli in base alla colonna "più recente"
+    if (nums.length >= 2) return nums[Math.min(latestIndex, nums.length - 1)];
+    // Se c'è un solo numero, restituiscilo
+    if (nums.length === 1) return nums[0];
   }
 
-  // 3) Layout con altro testo in mezzo ma comunque due colonne numeriche sulla riga
+  // 3) Fallback: pattern "due colonne" più lasco
   const row2colLoose = t.match(
     /A\)\s*VALORE\s+DELLA\s+PRODUZIONE[^]*?1\)\s*R[^\n]*?([0-9\.\s,]+)\s+([0-9\.\s,]+)/ims
   );
@@ -100,13 +112,13 @@ function extractRicaviVendite(text) {
     return toNum(pick);
   }
 
-  // 4) Layout a UNA colonna: prendi il singolo numero dopo la voce A)1)
+  // 4) Layout a una colonna
   const singleCol = t.match(
     /(^|\n)\s*1\)\s*Ricavi\s+delle\s+vendite\s+e\s+delle\s+prestazioni[^\d\-]*([0-9\.\s,]+)\b/ims
   );
   if (singleCol) return toNum(singleCol[2]);
 
-  // 5) Ultimo tentativo: numero su riga successiva
+  // 5) Numero su riga successiva
   const nextLine = t.match(
     /1\)\s*Ricavi\s+delle\s+vendite\s+e\s+delle\s+prestazioni[^\n]*\n\s*([0-9\.\s,]+)\b/ims
   );
