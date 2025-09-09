@@ -4,657 +4,492 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Calcola la Dimensione D’Impresa</title>
-  <!-- jsPDF per il report -->
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-  <!-- Favicon emoji 🏢 -->
   <link rel="icon" href='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏢</text></svg>'>
   <style>
-    :root{
-      --bg:#f7f9fb;
-      --card:#ffffff;
-      --ink:#1f2937;
-      --muted:#6b7280;
-      --line:#e5e7eb;
-      --ok:#16a34a;
-      --warn:#f59e0b;
-      --alert:#f97316;
-      --brand:#0ea5e9;
-    }
+    :root{--bg:#f7f9fb;--card:#fff;--ink:#1f2937;--muted:#6b7280;--line:#e5e7eb;--brand:#0ea5e9}
     *{box-sizing:border-box}
     body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,'Helvetica Neue',Arial}
     header{padding:28px 16px;text-align:center}
-    h1{margin:0 0 8px;font-size:28px}
-    .sub{color:var(--muted)}
+    h1{margin:0 0 8px;font-size:28px}.sub{color:var(--muted)}
     .container{max-width:1080px;margin:0 auto;padding:0 16px 64px}
     .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px 16px;margin:14px 0;box-shadow:0 2px 10px rgba(0,0,0,.05)}
     .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
     @media (max-width:800px){.row{grid-template-columns:1fr}}
     label{display:block;font-weight:600;margin:2px 0 6px}
-    /* tutti i campi + 16px per evitare zoom su iOS */
-    input[type="text"],input[type="number"],input[type="file"],select,textarea{
-      width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);font-size:16px;
-    }
+    input[type="text"],input[type="number"],input[type="file"],select,textarea{width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);font-size:16px}
     .inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     .actions{display:flex;gap:10px;flex-wrap:wrap}
-    button{border:1px solid var(--line);background:var(--brand);color:white;padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:700}
-    button.secondary{background:#fff;color:var(--ink)}
-    button.ghost{background:transparent;border-color:var(--line);color:var(--ink)}
-    button:disabled{opacity:.5;cursor:not-allowed}
-    .tiny{font-size:12px;color:var(--muted)}
-    .muted{color:var(--muted)}
-    /* Tabella riepilogo */
+    button{border:1px solid var(--line);background:var(--brand);color:#fff;padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:700}
+    button.secondary{background:#fff;color:var(--ink)} button.ghost{background:transparent;border-color:var(--line);color:var(--ink)}
+    button.tiny{padding:6px 10px;font-size:13px}
+    .tiny{font-size:12px;color:var(--muted)} .muted{color:var(--muted)}
     .table-wrap{border:1px solid var(--line);border-radius:12px;overflow-x:auto;background:#fff}
     table{width:100%;border-collapse:collapse;min-width:640px}
     th,td{border-top:1px solid var(--line);padding:10px;text-align:right;white-space:nowrap}
     th:first-child,td:first-child{text-align:left}
     .pill{display:inline-block;padding:6px 10px;border-radius:999px;font-weight:700}
-    .pill.micro{background:#dcfce7;color:#065f46}
-    .pill.piccola{background:#dcfce7;color:#166534}
-    .pill.media{background:#fef3c7;color:#92400e}
-    .pill.grande{background:#ffedd5;color:#9a3412}
-    .section-title{font-size:18px;margin:0 0 8px}
-    .divider{height:1px;background:var(--line);margin:12px 0}
+    .pill.micro{background:#dcfce7;color:#065f46}.pill.piccola{background:#dcfce7;color:#166534}.pill.media{background:#fef3c7;color:#92400e}.pill.grande{background:#ffedd5;color:#9a3412}
+    .section-title{font-size:18px;margin:0 0 8px}.divider{height:1px;background:var(--line);margin:12px 0}
     .list{display:flex;flex-direction:column;gap:12px}
     .kicker{font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-size:12px}
     .grid-3{display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px}
     @media (max-width:700px){.grid-3{grid-template-columns:1fr}}
-    .badge{border:1px solid var(--line);padding:4px 8px;border-radius:999px;font-size:12px;color:var(--muted)}
-    /* Mobile tweaks */
-    @media (max-width:480px){
-      body{font-size:15px}
-      header{padding:22px 14px}
-      .actions{flex-direction:column}
-      .actions button{width:100%}
-      input[type="text"],input[type="number"],input[type="file"],select{padding:12px}
-      button{padding:12px 16px}
-      th,td{padding:6px;font-size:13px}
-    }
+    @media (max-width:480px){.actions{flex-direction:column}.actions button{width:100%} th,td{padding:6px;font-size:13px}}
   </style>
 </head>
 <body>
-  <header>
-    <h1>Calcola la Dimensione D’Impresa <span class="emoji">🏢</span></h1>
-    <p class="sub">Calcola la reale dimensione della tua impresa secondo le normative europee.</p>
-  </header>
+<header>
+  <h1>Calcola la Dimensione D’Impresa <span class="emoji">🏢</span></h1>
+  <p class="sub">Calcola la reale dimensione della tua impresa secondo le normative europee.</p>
+</header>
 
-  <div class="container">
-    <!-- DATI IMPRESA PRINCIPALE -->
-    <section class="card">
-      <h2 class="section-title">Dati impresa <span class="emoji">🧾</span></h2>
-      <div class="row">
-        <div>
-          <label>Ragione sociale</label>
-          <input id="main_ragione" type="text" placeholder="Es. Alfa S.r.l." />
-        </div>
-        <div>
-          <label>Codice fiscale</label>
-          <input id="main_cf" type="text" placeholder="XXXXXXXXXXXX" />
-        </div>
-        <div>
-          <label>Totale attivo (EUR)</label>
-          <input id="main_attivo" type="number" min="0" step="0.01" placeholder="0" />
-        </div>
-        <div>
-          <label>Fatturato (EUR)</label>
-          <input id="main_fatturato" type="number" min="0" step="0.01" placeholder="0" />
-        </div>
-        <div>
-          <label>ULA</label>
-          <input id="main_ula" type="number" min="0" step="0.01" placeholder="0" />
-          <p class="tiny muted" style="margin-top:6px">
-            <strong>Cos’è l’ULA</strong>: Unità Lavorative Annue = numero medio di occupati equivalenti a tempo pieno nell’anno (inclusi part-time pro-quota). Inseriscila manualmente.
-            <a href="ula.html" style="margin-left:6px">Vedi qui la normativa per il calcolo esatto</a>.
-          </p>
+<div class="container">
+  <!-- Impresa principale -->
+  <section class="card">
+    <h2 class="section-title">Dati impresa <span class="emoji">🧾</span></h2>
+    <div class="row">
+      <div><label>Ragione sociale</label><input id="main_ragione" type="text" placeholder="Es. Alfa S.r.l."></div>
+      <div><label>Codice fiscale</label><input id="main_cf" type="text" placeholder="XXXXXXXXXXXX"></div>
+      <div><label>Totale attivo (EUR)</label><input id="main_attivo" type="number" min="0" step="0.01" placeholder="0"></div>
+      <div><label>Fatturato (EUR)</label><input id="main_fatturato" type="number" min="0" step="0.01" placeholder="0"></div>
+      <div>
+        <label>ULA</label>
+        <input id="main_ula" type="number" min="0" step="0.01" placeholder="0">
+        <p class="tiny muted" style="margin-top:6px">
+          <strong>Cos’è l’ULA</strong>: Unità Lavorative Annue = media annua degli occupati equivalenti a tempo pieno (part-time pro-quota).
+          <a href="ula.html" style="margin-left:6px">Vedi qui la normativa per il calcolo esatto</a>.
+        </p>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="row">
+      <div>
+        <label>Carica visura (PDF)</label>
+        <input id="file_visura" type="file" accept="application/pdf" />
+        <p class="tiny">Auto-compila <strong>Ragione sociale</strong> e <strong>Codice fiscale</strong>.</p>
+      </div>
+      <div>
+        <label>Carica bilancio (PDF)</label>
+        <input id="file_bilancio" type="file" accept="application/pdf" />
+        <p class="tiny">Carica <strong>l’ultimo bilancio approvato e depositato</strong>. Auto-compila <strong>Totale attivo</strong> e
+          <strong>Fatturato</strong> (= CE <strong>A)1) Ricavi vendite e prestazioni</strong>).</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Struttura gruppo -->
+  <section class="card">
+    <h2 class="section-title">Struttura del gruppo <span class="emoji">👥</span></h2>
+
+    <!-- Collegate -->
+    <div class="list">
+      <div class="inline">
+        <div class="kicker">Hai società collegate?</div>
+        <div class="radio-group">
+          <label class="inline"><input type="radio" name="has_collegate" value="no" checked> No</label>
+          <label class="inline"><input type="radio" name="has_collegate" value="si"> Sì</label>
         </div>
       </div>
-
-      <div class="divider"></div>
-
-      <div class="row">
-        <div>
-          <label>Carica visura (PDF)</label>
-          <input id="file_visura" type="file" accept="application/pdf" />
-          <p class="tiny" id="pdf_hint_visura">Dalla visura si auto-compilano solo <strong>Ragione sociale</strong> e <strong>Codice fiscale</strong>.</p>
-        </div>
-        <div>
-          <label>Carica bilancio (PDF)</label>
-          <input id="file_bilancio" type="file" accept="application/pdf" />
-          <p class="tiny">Carica <strong>l’ultimo bilancio approvato e depositato</strong>. Dal bilancio si auto-compilano <strong>Totale attivo</strong> e <strong>Fatturato</strong>.</p>
-          <p class="tiny">Il periodo di riferimento è l’ultimo esercizio contabile chiuso ed approvato precedentemente la data di sottoscrizione della domanda di agevolazione.</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- COLLEGATE / ASSOCIATE -->
-    <section class="card">
-      <h2 class="section-title">Struttura del gruppo <span class="emoji">👥</span></h2>
-
-      <!-- Società collegate -->
-      <div class="list">
-        <div class="inline">
-          <div class="kicker">Hai società collegate?</div>
-          <div class="radio-group">
-            <label class="inline"><input type="radio" name="has_collegate" value="no" checked> No</label>
-            <label class="inline"><input type="radio" name="has_collegate" value="si"> Sì</label>
-          </div>
-        </div>
-
-        <div class="tiny muted" style="display:block">
-          <strong>Impresa collegata – sintesi</strong><br>
-          • Detieni &gt; 50% di un’altra impresa <em>oppure</em> sei partecipato &gt; 50%<br>
-          • Il controllo può derivare anche da persone/gruppi che agiscono insieme e: controllo in entrambe <em>e</em> stesso mercato (primi 2 ATECO) <em>oppure</em> fatturazioni reciproche ≥ 25%.
-        </div>
-
-        <div id="collegate_wrap" style="display:none">
-          <div class="divider"></div>
-          <div id="collegate_list" class="list"></div>
-          <div class="actions">
-            <button id="add_collegata" type="button" class="secondary">+ Aggiungi collegata</button>
-            <span class="tiny">Max 10</span>
-          </div>
-        </div>
+      <div class="tiny muted">
+        <strong>Impresa collegata – sintesi</strong><br>
+        • Detieni &gt; 50% o sei partecipato &gt; 50% • Possibile anche controllo congiunto (stesso mercato o fatturazioni reciproche ≥ 25%).
       </div>
 
-      <div class="divider"></div>
+      <div id="collegate_wrap" style="display:none">
+        <div class="divider"></div>
+        <div id="collegate_list" class="list"></div>
+        <div class="actions"><button id="add_collegata" type="button" class="secondary">+ Aggiungi collegata</button><span class="tiny">Max 10</span></div>
+      </div>
+    </div>
 
-      <!-- Società associate -->
-      <div class="list">
-        <div class="inline">
-          <div class="kicker">Hai società associate?</div>
-          <div class="radio-group">
-            <label class="inline"><input type="radio" name="has_associate" value="no" checked> No</label>
-            <label class="inline"><input type="radio" name="has_associate" value="si"> Sì</label>
-          </div>
-        </div>
+    <div class="divider"></div>
 
-        <div class="tiny muted" style="display:block">
-          <strong>Impresa associata – sintesi</strong><br>
-          • Detieni almeno il 25% e non oltre il 50% in un’altra impresa <em>oppure</em> sei partecipato tra il 25% e il 50%.<br>
-          • I dati economici si considerano <em>pro-quota</em> in base alla percentuale.
-        </div>
-
-        <div id="associate_wrap" style="display:none">
-          <div class="divider"></div>
-          <div id="associate_list" class="list"></div>
-          <div class="actions">
-            <button id="add_associata" type="button" class="secondary">+ Aggiungi associata</button>
-            <span class="tiny">Max 10</span>
-          </div>
+    <!-- Associate -->
+    <div class="list">
+      <div class="inline">
+        <div class="kicker">Hai società associate?</div>
+        <div class="radio-group">
+          <label class="inline"><input type="radio" name="has_associate" value="no" checked> No</label>
+          <label class="inline"><input type="radio" name="has_associate" value="si"> Sì</label>
         </div>
       </div>
-    </section>
-
-    <!-- RIEPILOGO & CALCOLO -->
-    <section class="card">
-      <div class="actions">
-        <button id="calc_btn" type="button">🧮 Calcola la dimensione</button>
-        <button id="reset_btn" type="button" class="ghost">Ripulisci</button>
+      <div class="tiny muted">
+        <strong>Impresa associata – sintesi</strong><br>
+        • Partecipazione tra 25% e 50% (o viceversa). • I dati economici si sommano <em>pro-quota</em>.
       </div>
 
-      <div class="divider"></div>
-
-      <h3 class="section-title">Riepilogo <span class="emoji">📊</span></h3>
-      <div class="tiny muted" style="margin-bottom:8px">Valori in EUR (a 2 decimali). Le associate sono sommate pro-quota.</div>
-
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Voce</th>
-              <th>Base</th>
-              <th>Totale collegate</th>
-              <th>Totale associate</th>
-              <th>Totale</th>
-              <th>Check</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Totale attivo</td>
-              <td id="sum_attivo_base">– €</td>
-              <td id="sum_attivo_coll">– €</td>
-              <td id="sum_attivo_assoc">– €</td>
-              <td id="sum_attivo_tot">– €</td>
-              <td id="sum_attivo_chk">– €</td>
-            </tr>
-            <tr>
-              <td>Fatturato</td>
-              <td id="sum_fatt_base">– €</td>
-              <td id="sum_fatt_coll">– €</td>
-              <td id="sum_fatt_assoc">– €</td>
-              <td id="sum_fatt_tot">– €</td>
-              <td id="sum_fatt_chk">– €</td>
-            </tr>
-            <tr>
-              <td>ULA</td>
-              <td id="sum_ula_base">0</td>
-              <td id="sum_ula_coll">0</td>
-              <td id="sum_ula_assoc">0</td>
-              <td id="sum_ula_tot">0</td>
-              <td id="sum_ula_chk">0</td>
-            </tr>
-          </tbody>
-        </table>
+      <div id="associate_wrap" style="display:none">
+        <div class="divider"></div>
+        <div id="associate_list" class="list"></div>
+        <div class="actions"><button id="add_associata" type="button" class="secondary">+ Aggiungi associata</button><span class="tiny">Max 10</span></div>
       </div>
+    </div>
+  </section>
 
-      <div id="results" class="row" style="margin-top:14px;display:none">
-        <div class="card">
-          <div class="kicker">Dimensione d'impresa</div>
-          <div id="badge" class="pill" style="margin-top:8px">—</div>
-        </div>
-        <div class="card">
-          <div class="kicker">Spiegazione</div>
-          <div id="explain" class="tiny" style="margin-top:8px"></div>
-        </div>
-      </div>
+  <!-- Calcolo -->
+  <section class="card">
+    <div class="actions">
+      <button id="calc_btn" type="button">🧮 Calcola la dimensione</button>
+      <button id="reset_btn" type="button" class="ghost">Ripulisci</button>
+    </div>
 
-      <div class="actions" id="download_wrap" style="display:none;margin-top:12px">
-        <button id="download_pdf" type="button" class="secondary">⬇️ Scarica report in PDF</button>
-      </div>
-    </section>
+    <div class="divider"></div>
 
-    <footer class="card" style="text-align:center">
-      <div class="tiny"> Strumento che utilizza AI ideato e creato da Alessia Aita (con l'aiuto di Leonardo Bergonzoni) secondo la 🇪🇺 Normativa PMI</div>
-    </footer>
-  </div>
+    <h3 class="section-title">Riepilogo <span class="emoji">📊</span></h3>
+    <div class="tiny muted" style="margin-bottom:8px">Valori in EUR (2 decimali). Le associate sono sommate pro-quota.</div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Voce</th><th>Base</th><th>Totale collegate</th><th>Totale associate</th><th>Totale</th><th>Check</th></tr></thead>
+        <tbody>
+          <tr><td>Totale attivo</td><td id="sum_attivo_base">– €</td><td id="sum_attivo_coll">– €</td><td id="sum_attivo_assoc">– €</td><td id="sum_attivo_tot">– €</td><td id="sum_attivo_chk">– €</td></tr>
+          <tr><td>Fatturato</td><td id="sum_fatt_base">– €</td><td id="sum_fatt_coll">– €</td><td id="sum_fatt_assoc">– €</td><td id="sum_fatt_tot">– €</td><td id="sum_fatt_chk">– €</td></tr>
+          <tr><td>ULA</td><td id="sum_ula_base">0</td><td id="sum_ula_coll">0</td><td id="sum_ula_assoc">0</td><td id="sum_ula_tot">0</td><td id="sum_ula_chk">0</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div id="results" class="row" style="margin-top:14px;display:none">
+      <div class="card"><div class="kicker">Dimensione d'impresa</div><div id="badge" class="pill" style="margin-top:8px">—</div></div>
+      <div class="card"><div class="kicker">Spiegazione</div><div id="explain" class="tiny" style="margin-top:8px"></div></div>
+    </div>
+
+    <div class="actions" id="download_wrap" style="display:none;margin-top:12px">
+      <button id="download_pdf" type="button" class="secondary">⬇️ Scarica report in PDF</button>
+    </div>
+  </section>
+
+  <footer class="card" style="text-align:center">
+    <div class="tiny"> Strumento che utilizza AI ideato e creato da Alessia Aita (con l'aiuto di Leonardo Bergonzoni) secondo la 🇪🇺 Normativa PMI</div>
+  </footer>
+</div>
 
 <script>
-  // ====== Helpers ======
-  // EUR a 2 decimali
-  const fmtEUR = new Intl.NumberFormat('it-IT', { style:'currency', currency:'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const fmtUla = new Intl.NumberFormat('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
-  const clamp = (n,min,max)=>Math.min(Math.max(n,min),max);
-  const val = id => document.getElementById(id).value.trim();
-  const num = id => {
-    const v = (document.getElementById(id).value || '').toString().replace(/\./g,'').replace(',', '.');
-    const n = parseFloat(v);
-    return isNaN(n) ? 0 : n;
+/* ====== Helpers/format ====== */
+const fmtEUR = new Intl.NumberFormat('it-IT',{style:'currency',currency:'EUR',minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtUla = new Intl.NumberFormat('it-IT',{minimumFractionDigits:0,maximumFractionDigits:2});
+const clamp = (n,min,max)=>Math.min(Math.max(n,min),max);
+const val = id => document.getElementById(id).value.trim();
+const num = id => { const v=(document.getElementById(id).value||'').toString().replace(/\./g,'').replace(',', '.'); const n=parseFloat(v); return isNaN(n)?0:n; };
+
+/* ====== Upload client => serverless ====== */
+async function uploadAndExtractMain(file, kind){
+  const fd = new FormData(); fd.append('file', file); fd.append('kind', kind||'generico');
+  const inputs=[document.getElementById('file_visura'), document.getElementById('file_bilancio')]; inputs.forEach(b=>b.disabled=true);
+  try{
+    const res = await fetch('/.netlify/functions/extract',{method:'POST', body:fd});
+    if(res.status===422) return alert('PDF scannerizzato senza testo: serve OCR.');
+    if(!res.ok) throw new Error('Errore server: '+res.status);
+    const json = await res.json();
+    const ok = populateForm(json, kind);
+    alert(ok?'Dati estratti e compilati!':'Nessun dato utile estratto dal PDF.');
+  }catch(e){ console.error(e); alert('Impossibile estrarre i dati dal PDF.'); }
+  finally{ inputs.forEach(b=>b.disabled=false); }
+}
+
+/* Upload per una singola card (collegata/associata) */
+async function uploadAndExtractForCard(card, file, kind){
+  const fd = new FormData(); fd.append('file', file); fd.append('kind', kind||'generico');
+  const inputs = card.querySelectorAll('input[type="file"]'); inputs.forEach(b=>b.disabled=true);
+  try{
+    const res = await fetch('/.netlify/functions/extract',{method:'POST', body:fd});
+    if(res.status===422) return alert('PDF scannerizzato senza testo: serve OCR.');
+    if(!res.ok) throw new Error('Errore server: '+res.status);
+    const json = await res.json();
+    const ok = populateCompanyCard(card, json, kind);
+    alert(ok?'Dati estratti e compilati!':'Nessun dato utile estratto dal PDF.');
+  }catch(e){ console.error(e); alert('Impossibile estrarre i dati dal PDF.'); }
+  finally{ inputs.forEach(b=>b.disabled=false); }
+}
+
+/* ====== Compilazione ====== */
+function populateForm(data, kind){
+  if(!data || typeof data!=='object') return false;
+  let filled=false;
+  const cleanNum = v => { if(v==null) return null; const s=String(v).replace(/[€\s]/g,'').replace(/\./g,'').replace(',', '.'); const n=parseFloat(s); return Number.isFinite(n)?n:null; };
+
+  if(kind==='visura'){
+    if(data.ragioneSociale){ document.getElementById('main_ragione').value = data.ragioneSociale.trim(); filled=true; }
+    if(data.codiceFiscale){ document.getElementById('main_cf').value = data.codiceFiscale.trim(); filled=true; }
+  }else if(kind==='bilancio'){
+    const att=cleanNum(data.attivo); if(att!=null){ document.getElementById('main_attivo').value = att; filled=true; }
+    const fat=cleanNum(data.fatturato); if(fat!=null){ document.getElementById('main_fatturato').value = fat; filled=true; }
+  }else{
+    if(data.ragioneSociale){ document.getElementById('main_ragione').value = data.ragioneSociale.trim(); filled=true; }
+    if(data.codiceFiscale){ document.getElementById('main_cf').value = data.codiceFiscale.trim(); filled=true; }
+    const att=cleanNum(data.attivo); if(att!=null){ document.getElementById('main_attivo').value = att; filled=true; }
+    const fat=cleanNum(data.fatturato); if(fat!=null){ document.getElementById('main_fatturato').value = fat; filled=true; }
+  }
+  return filled;
+}
+
+/* Popola una card collegata/associata */
+function populateCompanyCard(card, data, kind){
+  if(!data) return false;
+  let filled=false;
+  const q = s => card.querySelector(s);
+  const cleanNum = v => { if(v==null) return null; const s=String(v).replace(/[€\s]/g,'').replace(/\./g,'').replace(',', '.'); const n=parseFloat(s); return Number.isFinite(n)?n:null; };
+
+  if(kind==='visura'){
+    if(data.ragioneSociale){ q('.ragione').value = data.ragioneSociale.trim(); filled=true; }
+    if(data.codiceFiscale){ q('.cf').value = data.codiceFiscale.trim(); filled=true; }
+  }else if(kind==='bilancio'){
+    const att=cleanNum(data.attivo); if(att!=null){ q('.attivo').value = att; filled=true; }
+    const fat=cleanNum(data.fatturato); if(fat!=null){ q('.fatturato').value = fat; filled=true; }
+  }else{
+    if(data.ragioneSociale){ q('.ragione').value = data.ragioneSociale.trim(); filled=true; }
+    if(data.codiceFiscale){ q('.cf').value = data.codiceFiscale.trim(); filled=true; }
+    const att=cleanNum(data.attivo); if(att!=null){ q('.attivo').value = att; filled=true; }
+    const fat=cleanNum(data.fatturato); if(fat!=null){ q('.fatturato').value = fat; filled=true; }
+  }
+  return filled;
+}
+
+/* ====== Template cards (con upload) ====== */
+const maxItems = 10;
+
+const collegataTemplate = (idx)=>`
+  <div class="card">
+    <div class="inline" style="justify-content:space-between">
+      <strong>Società collegata #${idx+1}</strong>
+      <div class="inline" style="gap:8px">
+        <label class="tiny">Visura <input type="file" class="up-visura" accept="application/pdf" style="display:none"></label>
+        <button type="button" class="ghost tiny btn-visura">Carica visura</button>
+        <label class="tiny">Bilancio <input type="file" class="up-bilancio" accept="application/pdf" style="display:none"></label>
+        <button type="button" class="ghost tiny btn-bilancio">Carica bilancio</button>
+        <button type="button" class="ghost tiny remove">– Rimuovi</button>
+      </div>
+    </div>
+    <div class="row">
+      <div><label>Ragione sociale</label><input type="text" class="ragione" placeholder="Es. Beta S.p.A."></div>
+      <div><label>Codice fiscale</label><input type="text" class="cf" placeholder="XXXXXXXXXXXX"></div>
+      <div><label>Totale attivo (EUR)</label><input type="number" min="0" step="0.01" class="attivo" placeholder="0"></div>
+      <div><label>Fatturato (EUR)</label><input type="number" min="0" step="0.01" class="fatturato" placeholder="0"></div>
+      <div><label>ULA</label><input type="number" min="0" step="0.01" class="ula" placeholder="0"></div>
+    </div>
+    <p class="tiny muted">La visura compila ragione sociale e CF; il bilancio compila attivo e fatturato.</p>
+  </div>`;
+
+const associataTemplate = (idx)=>`
+  <div class="card">
+    <div class="inline" style="justify-content:space-between">
+      <strong>Società associata #${idx+1}</strong>
+      <div class="inline" style="gap:8px">
+        <label class="tiny">Visura <input type="file" class="up-visura" accept="application/pdf" style="display:none"></label>
+        <button type="button" class="ghost tiny btn-visura">Carica visura</button>
+        <label class="tiny">Bilancio <input type="file" class="up-bilancio" accept="application/pdf" style="display:none"></label>
+        <button type="button" class="ghost tiny btn-bilancio">Carica bilancio</button>
+        <button type="button" class="ghost tiny remove">– Rimuovi</button>
+      </div>
+    </div>
+    <div class="row">
+      <div><label>Percentuale (%)</label><input type="number" min="0" max="100" step="0.01" class="perc" placeholder="25"></div>
+      <div><label>Ragione sociale</label><input type="text" class="ragione" placeholder="Es. Gamma S.r.l."></div>
+      <div><label>Codice fiscale</label><input type="text" class="cf" placeholder="XXXXXXXXXXXX"></div>
+    </div>
+    <div class="grid-3">
+      <div><label>Totale attivo (dati interi, EUR)</label><input type="number" min="0" step="0.01" class="attivo" placeholder="0"></div>
+      <div><label>Dati proporzionali</label><input type="text" class="attivo_prop" readonly placeholder="0"></div>
+    </div>
+    <div class="grid-3">
+      <div><label>Fatturato (dati interi, EUR)</label><input type="number" min="0" step="0.01" class="fatturato" placeholder="0"></div>
+      <div><label>Dati proporzionali</label><input type="text" class="fatturato_prop" readonly placeholder="0"></div>
+    </div>
+    <div class="grid-3">
+      <div><label>ULA (dati interi)</label><input type="number" min="0" step="0.01" class="ula" placeholder="0"></div>
+      <div><label>Dati proporzionali</label><input type="text" class="ula_prop" readonly placeholder="0"></div>
+    </div>
+    <p class="tiny muted">La visura compila ragione sociale e CF; il bilancio compila attivo e fatturato. I valori “proporzionali” sono calcolati sulla percentuale.</p>
+  </div>`;
+
+/* ====== Add/bind cards ====== */
+const collegateList = document.getElementById('collegate_list');
+const associateList = document.getElementById('associate_list');
+
+function bindCompanyUploads(card){
+  const btnV = card.querySelector('.btn-visura');
+  const btnB = card.querySelector('.btn-bilancio');
+  const upV  = card.querySelector('.up-visura');
+  const upB  = card.querySelector('.up-bilancio');
+  btnV.onclick = ()=> upV.click();
+  btnB.onclick = ()=> upB.click();
+  upV.addEventListener('change', e => { const f=e.target.files?.[0]; if(f) uploadAndExtractForCard(card, f, 'visura'); });
+  upB.addEventListener('change', e => { const f=e.target.files?.[0]; if(f) uploadAndExtractForCard(card, f, 'bilancio'); });
+}
+
+function bindRemove(scope){
+  scope.querySelectorAll('.remove').forEach(btn=>{
+    btn.onclick = ()=>{
+      btn.closest('.card').remove();
+      Array.from(scope.children).forEach((card,i)=>{
+        const title = card.querySelector('strong');
+        if(title) title.textContent = title.textContent.replace(/#\d+/, '#'+(i+1));
+      })
+    }
+  });
+}
+
+function bindAssociateProportional(card){
+  const perc = card.querySelector('.perc');
+  const att = card.querySelector('.attivo');
+  const fat = card.querySelector('.fatturato');
+  const ula = card.querySelector('.ula');
+  const attP = card.querySelector('.attivo_prop');
+  const fatP = card.querySelector('.fatturato_prop');
+  const ulaP = card.querySelector('.ula_prop');
+  const recompute = ()=>{
+    const p = clamp(parseFloat(String(perc.value||'0').replace(',', '.'))||0,0,100)/100;
+    const attivo = parseFloat(att.value||'0')||0;
+    const fatturato = parseFloat(fat.value||'0')||0;
+    const u = parseFloat(ula.value||'0')||0;
+    attP.value = fmtEUR.format(attivo*p);
+    fatP.value = fmtEUR.format(fatturato*p);
+    ulaP.value = fmtUla.format(u*p);
   };
+  [perc,att,fat,ula].forEach(i=> i.addEventListener('input', recompute));
+  recompute();
+}
 
-  // Compila selettivo in base al "kind"
-  function populateForm(data, kind){
-    console.log('JSON estratto:', data, 'kind:', kind);
-    if(!data || typeof data!=='object') return false;
-    let filled = false;
+function addCollegata(){
+  const count = collegateList.children.length;
+  if(count>=maxItems) return alert('Puoi inserire al massimo '+maxItems+' società collegate');
+  const wrap = document.createElement('div'); wrap.innerHTML = collegataTemplate(count);
+  const card = wrap.firstElementChild; collegateList.appendChild(card);
+  bindRemove(collegateList); bindCompanyUploads(card);
+}
 
-    const cleanNum = v => {
-      if(v==null) return null;
-      const s = String(v).replace(/[€\s]/g,'').replace(/\./g,'').replace(',', '.');
-      const n = parseFloat(s);
-      return Number.isFinite(n) ? n : null;
-    };
+function addAssociata(){
+  const count = associateList.children.length;
+  if(count>=maxItems) return alert('Puoi inserire al massimo '+maxItems+' società associate');
+  const wrap = document.createElement('div'); wrap.innerHTML = associataTemplate(count);
+  const card = wrap.firstElementChild; associateList.appendChild(card);
+  bindRemove(associateList); bindAssociateProportional(card); bindCompanyUploads(card);
+}
 
-    if(kind === 'visura'){
-      if(data.ragioneSociale && data.ragioneSociale.trim()){
-        document.getElementById('main_ragione').value = data.ragioneSociale.trim();
-        filled = true;
-      }
-      if(data.codiceFiscale && data.codiceFiscale.trim()){
-        document.getElementById('main_cf').value = data.codiceFiscale.trim();
-        filled = true;
-      }
-      // ignora attivo/fatturato/ula
-    } else if(kind === 'bilancio'){
-      const att = cleanNum(data.attivo);
-      if(att!=null){ document.getElementById('main_attivo').value = att; filled = true; }
-      const fat = cleanNum(data.fatturato);
-      if(fat!=null){ document.getElementById('main_fatturato').value = fat; filled = true; }
-      // ignora ragione/cf/ula
-    } else {
-      // fallback generico (come sicurezza)
-      if(data.ragioneSociale && data.ragioneSociale.trim()){
-        document.getElementById('main_ragione').value = data.ragioneSociale.trim();
-        filled = true;
-      }
-      if(data.codiceFiscale && data.codiceFiscale.trim()){
-        document.getElementById('main_cf').value = data.codiceFiscale.trim();
-        filled = true;
-      }
-      const att = cleanNum(data.attivo);
-      if(att!=null){ document.getElementById('main_attivo').value = att; filled = true; }
-      const fat = cleanNum(data.fatturato);
-      if(fat!=null){ document.getElementById('main_fatturato').value = fat; filled = true; }
-    }
+/* Toggle sezioni (le spiegazioni restano sempre visibili) */
+document.querySelectorAll('input[name="has_collegate"]').forEach(r=>{
+  r.addEventListener('change',()=>{ const show = r.value==='si' && r.checked; document.getElementById('collegate_wrap').style.display = show?'block':'none'; })
+});
+document.querySelectorAll('input[name="has_associate"]').forEach(r=>{
+  r.addEventListener('change',()=>{ const show = r.value==='si' && r.checked; document.getElementById('associate_wrap').style.display = show?'block':'none'; })
+});
 
-    return filled;
-  }
+document.getElementById('add_collegata').onclick = addCollegata;
+document.getElementById('add_associata').onclick = addAssociata;
 
-  async function uploadAndExtract(file, kind){
-    const fd = new FormData();
-    fd.append('file', file);
-    fd.append('kind', kind||'generico');
-    const inputs = [document.getElementById('file_visura'), document.getElementById('file_bilancio')];
-    inputs.forEach(b=>b.disabled=true);
-    try{
-      const res = await fetch('/.netlify/functions/extract', { method:'POST', body: fd });
-      if(res.status === 422){
-        alert('Il PDF sembra essere uno scan senza testo. Serve OCR per estrarre i dati.');
-        return;
-      }
-      if(!res.ok) throw new Error('Errore server: '+res.status);
-
-      const json = await res.json();
-      const ok = populateForm(json, kind);
-      alert(ok ? 'Dati estratti e compilati!' : 'Nessun dato utile estratto dal PDF.');
-    }catch(err){
-      console.error(err);
-      alert('Impossibile estrarre i dati dal PDF.');
-    }finally{
-      inputs.forEach(b=>b.disabled=false);
-    }
-  }
-
-  // ====== Dynamic blocks (collegate & associate) ======
-  const maxItems = 10;
-
-  const collegataTemplate = (idx)=>`
-    <div class="card">
-      <div class="inline" style="justify-content:space-between">
-        <strong>Società collegata #${idx+1}</strong>
-        <button type="button" class="ghost remove">– Rimuovi</button>
-      </div>
-      <div class="row">
-        <div><label>Ragione sociale</label><input type="text" class="ragione" placeholder="Es. Beta S.p.A."></div>
-        <div><label>Codice fiscale</label><input type="text" class="cf" placeholder="XXXXXXXXXXXX"></div>
-        <div><label>Totale attivo (EUR)</label><input type="number" min="0" step="0.01" class="attivo" placeholder="0"></div>
-        <div><label>Fatturato (EUR)</label><input type="number" min="0" step="0.01" class="fatturato" placeholder="0"></div>
-        <div><label>ULA</label><input type="number" min="0" step="0.01" class="ula" placeholder="0"></div>
-      </div>
-    </div>`;
-
-  const associataTemplate = (idx)=>`
-    <div class="card">
-      <div class="inline" style="justify-content:space-between">
-        <strong>Società associata #${idx+1}</strong>
-        <div class="inline" style="gap:8px">
-          <span class="badge">Proporzionale alla %</span>
-          <button type="button" class="ghost remove">– Rimuovi</button>
-        </div>
-      </div>
-      <div class="row">
-        <div><label>Percentuale (%)</label><input type="number" min="0" max="100" step="0.01" class="perc" placeholder="25"></div>
-        <div><label>Ragione sociale</label><input type="text" class="ragione" placeholder="Es. Gamma S.r.l."></div>
-        <div><label>Codice fiscale</label><input type="text" class="cf" placeholder="XXXXXXXXXXXX"></div>
-      </div>
-      <div class="grid-3">
-        <div>
-          <label>Totale attivo (dati interi, EUR)</label>
-          <input type="number" min="0" step="0.01" class="attivo" placeholder="0">
-        </div>
-        <div>
-          <label>Dati proporzionali</label>
-          <input type="text" class="attivo_prop" readonly placeholder="0">
-        </div>
-      </div>
-      <div class="grid-3">
-        <div>
-          <label>Fatturato (dati interi, EUR)</label>
-          <input type="number" min="0" step="0.01" class="fatturato" placeholder="0">
-        </div>
-        <div>
-          <label>Dati proporzionali</label>
-          <input type="text" class="fatturato_prop" readonly placeholder="0">
-        </div>
-      </div>
-      <div class="grid-3">
-        <div>
-          <label>ULA (dati interi)</label>
-          <input type="number" min="0" step="0.01" class="ula" placeholder="0">
-        </div>
-        <div>
-          <label>Dati proporzionali</label>
-          <input type="text" class="ula_prop" readonly placeholder="0">
-        </div>
-      </div>
-    </div>`;
-
-  const collegateList = document.getElementById('collegate_list');
-  const associateList = document.getElementById('associate_list');
-
-  function addCollegata(){
-    const count = collegateList.children.length;
-    if(count>=maxItems) return alert('Puoi inserire al massimo '+maxItems+' società collegate');
-    const wrapper = document.createElement('div');
-    wrapper.innerHTML = collegataTemplate(count);
-    collegateList.appendChild(wrapper.firstElementChild);
-    bindRemove(collegateList);
-  }
-
-  function addAssociata(){
-    const count = associateList.children.length;
-    if(count>=maxItems) return alert('Puoi inserire al massimo '+maxItems+' società associate');
-    const wrapper = document.createElement('div');
-    wrapper.innerHTML = associataTemplate(count);
-    const el = wrapper.firstElementChild;
-    associateList.appendChild(el);
-    bindRemove(associateList);
-    bindAssociateProportional(el);
-  }
-
-  function bindRemove(scope){
-    scope.querySelectorAll('.remove').forEach(btn=>{
-      btn.onclick = ()=>{
-        btn.closest('.card').remove();
-        Array.from(scope.children).forEach((card,i)=>{
-          const title = card.querySelector('strong');
-          if(title){ title.textContent = title.textContent.replace(/#\d+/, '#'+(i+1)); }
-        })
-      }
-    })
-  }
-
-  function bindAssociateProportional(card){
-    const perc = card.querySelector('.perc');
-    const att = card.querySelector('.attivo');
-    const fat = card.querySelector('.fatturato');
-    const ula = card.querySelector('.ula');
-    const attP = card.querySelector('.attivo_prop');
-    const fatP = card.querySelector('.fatturato_prop');
-    const ulaP = card.querySelector('.ula_prop');
-    const recompute = ()=>{
-      const p = clamp(parseFloat(String(perc.value||'0').replace(',', '.')) || 0, 0, 100) / 100;
-      const attivo = parseFloat(att.value||'0')||0;
-      const fatturato = parseFloat(fat.value||'0')||0;
-      const u = parseFloat(ula.value||'0')||0;
-      attP.value = fmtEUR.format(attivo*p);
-      fatP.value = fmtEUR.format(fatturato*p);
-      ulaP.value = fmtUla.format(u*p);
-    };
-    [perc,att,fat,ula].forEach(i=> i.addEventListener('input', recompute));
-    recompute();
-  }
-
-  // Toggle: mostriamo/nascondiamo SOLO i form, non le spiegazioni
-  document.querySelectorAll('input[name="has_collegate"]').forEach(r=>{
-    r.addEventListener('change',()=>{
-      const show = r.value==='si' && r.checked;
-      document.getElementById('collegate_wrap').style.display = show?'block':'none';
-    })
-  })
-  document.querySelectorAll('input[name="has_associate"]').forEach(r=>{
-    r.addEventListener('change',()=>{
-      const show = r.value==='si' && r.checked;
-      document.getElementById('associate_wrap').style.display = show?'block':'none';
-    })
-  })
-
-  document.getElementById('add_collegata').onclick = addCollegata;
-  document.getElementById('add_associata').onclick = addAssociata;
-
-  // ====== Calculation ======
-  function sumCollegate(){
-    let att=0,fat=0,ula=0;
-    collegateList.querySelectorAll('.card').forEach(c=>{
-      const vAtt = parseFloat(c.querySelector('.attivo').value||'0')||0;
-      const vFat = parseFloat(c.querySelector('.fatturato').value||'0')||0;
-      const vUla = parseFloat(c.querySelector('.ula').value||'0')||0;
-      att += vAtt; fat += vFat; ula += vUla;
-    });
-    return {att,fat,ula};
-  }
-  function sumAssociate(){
-    let att=0,fat=0,ula=0;
-    associateList.querySelectorAll('.card').forEach(c=>{
-      const p = clamp(parseFloat(c.querySelector('.perc').value||'0'),0,100)/100;
-      const vAtt = parseFloat(c.querySelector('.attivo').value||'0')||0;
-      const vFat = parseFloat(c.querySelector('.fatturato').value||'0')||0;
-      const vUla = parseFloat(c.querySelector('.ula').value||'0')||0;
-      att += vAtt*p; fat += vFat*p; ula += vUla*p;
-    });
-    return {att,fat,ula};
-  }
-
-  function setSummaryRow(key, base, coll, assoc){
-    const tot = base + coll + assoc;
-    if(key==='ula'){
-      document.getElementById('sum_ula_base').textContent = fmtUla.format(base);
-      document.getElementById('sum_ula_coll').textContent = fmtUla.format(coll);
-      document.getElementById('sum_ula_assoc').textContent = fmtUla.format(assoc);
-      document.getElementById('sum_ula_tot').textContent = fmtUla.format(tot);
-      document.getElementById('sum_ula_chk').textContent = fmtUla.format(tot);
-    }else{
-      document.getElementById(`sum_${key}_base`).textContent = fmtEUR.format(base);
-      document.getElementById(`sum_${key}_coll`).textContent = fmtEUR.format(coll);
-      document.getElementById(`sum_${key}_assoc`).textContent = fmtEUR.format(assoc);
-      document.getElementById(`sum_${key}_tot`).textContent = fmtEUR.format(tot);
-      document.getElementById(`sum_${key}_chk`).textContent = fmtEUR.format(tot);
-    }
-    return tot;
-  }
-
-  function classify(ula, fatt, attivo){
-    const M2=2_000_000, M10=10_000_000, M43=43_000_000, M50=50_000_000;
-    const ok = (ulaMax, fattMax, attMax)=> ula < ulaMax && (fatt <= fattMax || attivo <= attMax);
-    if (ok(10, M2, M2)) return 'micro';
-    if (ok(50, M10, M10)) return 'piccola';
-    if (ok(250, M50, M43)) return 'media';
-    return 'grande';
-  }
-
-  function onCalculate(){
-    const base = { att: num('main_attivo'), fat: num('main_fatturato'), ula: parseFloat(document.getElementById('main_ula').value||'0')||0 };
-    const coll = sumCollegate();
-    const assoc = sumAssociate();
-
-    const attTot = setSummaryRow('attivo', base.att, coll.att, assoc.att);
-    const fatTot = setSummaryRow('fatt', base.fat, coll.fat, assoc.fat);
-    const ulaTot = setSummaryRow('ula', base.ula, coll.ula, assoc.ula);
-
-    const size = classify(ulaTot, fatTot, attTot);
-
-    const badge = document.getElementById('badge');
-    badge.className = 'pill '+size;
-    badge.textContent = size.charAt(0).toUpperCase()+size.slice(1);
-
-    const explain = document.getElementById('explain');
-    explain.innerHTML = `ULA totali: <strong>${fmtUla.format(ulaTot)}</strong> · Fatturato totale: <strong>${fmtEUR.format(fatTot)}</strong> · Totale attivo: <strong>${fmtEUR.format(attTot)}</strong><br>
-    Classificazione secondo regole UE: soglia sugli occupati <em>e</em> (fatturato <em>oppure</em> totale attivo).`;
-
-    document.getElementById('results').style.display = 'grid';
-    document.getElementById('download_wrap').style.display = 'flex';
-  }
-
-  document.getElementById('calc_btn').onclick = onCalculate;
-  document.getElementById('reset_btn').onclick = ()=> window.location.reload();
-
-  // Upload listeners
-  document.getElementById('file_visura').addEventListener('change',(e)=>{
-    const f = e.target.files && e.target.files[0];
-    if(f) uploadAndExtract(f, 'visura');
+/* ====== Somme & calcolo ====== */
+function sumCollegate(){
+  let att=0,fat=0,ula=0;
+  collegateList.querySelectorAll('.card').forEach(c=>{
+    att += parseFloat(c.querySelector('.attivo').value||'0')||0;
+    fat += parseFloat(c.querySelector('.fatturato').value||'0')||0;
+    ula += parseFloat(c.querySelector('.ula').value||'0')||0;
   });
-  document.getElementById('file_bilancio').addEventListener('change',(e)=>{
-    const f = e.target.files && e.target.files[0];
-    if(f) uploadAndExtract(f, 'bilancio');
+  return {att,fat,ula};
+}
+function sumAssociate(){
+  let att=0,fat=0,ula=0;
+  associateList.querySelectorAll('.card').forEach(c=>{
+    const p = clamp(parseFloat(String(c.querySelector('.perc').value||'0').replace(',', '.'))||0,0,100)/100;
+    const vAtt = parseFloat(c.querySelector('.attivo').value||'0')||0;
+    const vFat = parseFloat(c.querySelector('.fatturato').value||'0')||0;
+    const vUla = parseFloat(c.querySelector('.ula').value||'0')||0;
+    att += vAtt*p; fat += vFat*p; ula += vUla*p;
   });
-
-  // ====== Report PDF ======
-  document.getElementById('download_pdf').addEventListener('click', downloadReport);
-
-  function collectCompanies(scope){
-    const out = [];
-    scope.querySelectorAll('.card').forEach(c=>{
-      const r = (c.querySelector('.ragione')?.value||'').trim();
-      const cf = (c.querySelector('.cf')?.value||'').trim();
-      const att = parseFloat(c.querySelector('.attivo')?.value||'0')||0;
-      const fat = parseFloat(c.querySelector('.fatturato')?.value||'0')||0;
-      const ula = parseFloat(c.querySelector('.ula')?.value||'0')||0;
-      if(r || cf || att || fat || ula) out.push({r,cf,att,fat,ula});
-    });
-    return out;
+  return {att,fat,ula};
+}
+function setSummaryRow(key, base, coll, assoc){
+  const tot = base + coll + assoc;
+  if(key==='ula'){
+    document.getElementById('sum_ula_base').textContent = fmtUla.format(base);
+    document.getElementById('sum_ula_coll').textContent = fmtUla.format(coll);
+    document.getElementById('sum_ula_assoc').textContent = fmtUla.format(assoc);
+    document.getElementById('sum_ula_tot').textContent = fmtUla.format(tot);
+    document.getElementById('sum_ula_chk').textContent = fmtUla.format(tot);
+  }else{
+    document.getElementById(`sum_${key}_base`).textContent = fmtEUR.format(base);
+    document.getElementById(`sum_${key}_coll`).textContent = fmtEUR.format(coll);
+    document.getElementById(`sum_${key}_assoc`).textContent = fmtEUR.format(assoc);
+    document.getElementById(`sum_${key}_tot`).textContent = fmtEUR.format(tot);
+    document.getElementById(`sum_${key}_chk`).textContent = fmtEUR.format(tot);
   }
+  return tot;
+}
+function classify(ula, fatt, attivo){
+  const M2=2_000_000, M10=10_000_000, M43=43_000_000, M50=50_000_000;
+  const ok=(u,f,a)=> ula < u && (fatt <= f || attivo <= a);
+  if(ok(10,M2,M2)) return 'micro';
+  if(ok(50,M10,M10)) return 'piccola';
+  if(ok(250,M50,M43)) return 'media';
+  return 'grande';
+}
+function onCalculate(){
+  const base = { att: num('main_attivo'), fat: num('main_fatturato'), ula: parseFloat(document.getElementById('main_ula').value||'0')||0 };
+  const coll = sumCollegate(); const assoc = sumAssociate();
+  const attTot = setSummaryRow('attivo', base.att, coll.att, assoc.att);
+  const fatTot = setSummaryRow('fatt',   base.fat, coll.fat, assoc.fat);
+  const ulaTot = setSummaryRow('ula',    base.ula, coll.ula, assoc.ula);
+  const size = classify(ulaTot, fatTot, attTot);
+  const badge = document.getElementById('badge'); badge.className='pill '+size; badge.textContent = size[0].toUpperCase()+size.slice(1);
+  document.getElementById('explain').innerHTML = `ULA totali: <strong>${fmtUla.format(ulaTot)}</strong> · Fatturato totale: <strong>${fmtEUR.format(fatTot)}</strong> · Totale attivo: <strong>${fmtEUR.format(attTot)}</strong><br>Classificazione UE: soglia sugli occupati <em>e</em> (fatturato <em>oppure</em> totale attivo).`;
+  document.getElementById('results').style.display='grid';
+  document.getElementById('download_wrap').style.display='flex';
+}
+document.getElementById('calc_btn').onclick = onCalculate;
+document.getElementById('reset_btn').onclick = ()=>window.location.reload();
 
-  function downloadReport(){
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ unit:'pt', format:'a4' });
-    const margin = 40;
-    let y = margin;
+/* Upload (impresa principale) */
+document.getElementById('file_visura').addEventListener('change',e=>{ const f=e.target.files?.[0]; if(f) uploadAndExtractMain(f,'visura'); });
+document.getElementById('file_bilancio').addEventListener('change',e=>{ const f=e.target.files?.[0]; if(f) uploadAndExtractMain(f,'bilancio'); });
 
-    const addLine = (text, bold=false) => {
-      doc.setFont('helvetica', bold ? 'bold' : 'normal');
-      doc.text(text, margin, y);
-      y += 18;
-    };
-    const addGap = h => { y += h; };
+/* ====== Report PDF (come prima) ====== */
+document.getElementById('download_pdf').addEventListener('click', downloadReport);
+function collectCompanies(scope){
+  const out=[]; scope.querySelectorAll('.card').forEach(c=>{
+    const r=(c.querySelector('.ragione')?.value||'').trim();
+    const cf=(c.querySelector('.cf')?.value||'').trim();
+    const att=parseFloat(c.querySelector('.attivo')?.value||'0')||0;
+    const fat=parseFloat(c.querySelector('.fatturato')?.value||'0')||0;
+    const ula=parseFloat(c.querySelector('.ula')?.value||'0')||0;
+    if(r||cf||att||fat||ula) out.push({r,cf,att,fat,ula});
+  }); return out;
+}
+function downloadReport(){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'pt', format:'a4' });
+  const margin=40; let y=margin;
+  const addLine=(t,b=false)=>{ doc.setFont('helvetica', b?'bold':'normal'); doc.text(t, margin, y); y+=18; }
+  const addGap=h=>y+=h;
 
-    // Header
-    doc.setFontSize(16); doc.setFont('helvetica','bold');
-    addLine('Calcolo Dimensione d’Impresa', true);
-    doc.setFontSize(10); addLine('Report generato automaticamente dal tool web.');
+  doc.setFontSize(16); addLine('Calcolo Dimensione d’Impresa', true);
+  doc.setFontSize(10); addLine('Report generato automaticamente dal tool web.');
+  addGap(10);
+  doc.setFontSize(12); addLine('Impresa principale', true);
+  doc.setFont('helvetica','normal');
+  addLine('Ragione sociale: '+(val('main_ragione')||'-'));
+  addLine('Codice fiscale: '+(val('main_cf')||'-'));
+  addLine('Totale attivo: '+(document.getElementById('sum_attivo_base').textContent||'-'));
+  addLine('Fatturato: '+(document.getElementById('sum_fatt_base').textContent||'-'));
+  addLine('ULA: '+(document.getElementById('sum_ula_base').textContent||'0'));
 
-    addGap(10);
-    doc.setFontSize(12); doc.setFont('helvetica','bold');
-    addLine('Impresa principale', true);
-    doc.setFont('helvetica','normal');
-    addLine('Ragione sociale: ' + (val('main_ragione') || '-'));
-    addLine('Codice fiscale: ' + (val('main_cf') || '-'));
-    addLine('Totale attivo: ' + (document.getElementById('sum_attivo_base').textContent || '-'));
-    addLine('Fatturato: ' + (document.getElementById('sum_fatt_base').textContent || '-'));
-    addLine('ULA: ' + (document.getElementById('sum_ula_base').textContent || '0'));
+  const coll=collectCompanies(document.getElementById('collegate_list')); addGap(8);
+  addLine('Società collegate ('+coll.length+')', true);
+  if(coll.length===0) addLine('- Nessuna'); else coll.forEach((c,i)=> addLine(`${i+1}. ${c.r||'-'}  CF: ${c.cf||'-'}  Attivo: ${fmtEUR.format(c.att)}  Fatt.: ${fmtEUR.format(c.fat)}  ULA: ${fmtUla.format(c.ula)}`));
 
-    // Collegate
-    const coll = collectCompanies(document.getElementById('collegate_list'));
-    addGap(8);
-    doc.setFont('helvetica','bold'); addLine('Società collegate ('+coll.length+')', true);
-    doc.setFont('helvetica','normal');
-    if(coll.length===0){ addLine('- Nessuna'); }
-    else coll.forEach((c,i)=>{
-      addLine(`${i+1}. ${c.r || '-'}  CF: ${c.cf || '-'}  Attivo: ${fmtEUR.format(c.att)}  Fatt.: ${fmtEUR.format(c.fat)}  ULA: ${fmtUla.format(c.ula)}`);
-    });
+  const assoc=collectCompanies(document.getElementById('associate_list')); addGap(8);
+  addLine('Società associate ('+assoc.length+')', true);
+  if(assoc.length===0) addLine('- Nessuna'); else assoc.forEach((c,i)=> addLine(`${i+1}. ${c.r||'-'}  CF: ${c.cf||'-'}  Attivo: ${fmtEUR.format(c.att)}  Fatt.: ${fmtEUR.format(c.fat)}  ULA: ${fmtUla.format(c.ula)}`));
 
-    // Associate
-    const assoc = collectCompanies(document.getElementById('associate_list'));
-    addGap(8);
-    doc.setFont('helvetica','bold'); addLine('Società associate ('+assoc.length+')', true);
-    doc.setFont('helvetica','normal');
-    if(assoc.length===0){ addLine('- Nessuna'); }
-    else assoc.forEach((c,i)=>{
-      addLine(`${i+1}. ${c.r || '-'}  CF: ${c.cf || '-'}  Attivo: ${fmtEUR.format(c.att)}  Fatt.: ${fmtEUR.format(c.fat)}  ULA: ${fmtUla.format(c.ula)}`);
-    });
-
-    // Riepilogo
-    addGap(8);
-    doc.setFont('helvetica','bold'); addLine('Riepilogo', true);
-    doc.setFont('helvetica','normal');
-    addLine('Totale attivo: Base ' + document.getElementById('sum_attivo_base').textContent +
-            ' · Collegate ' + document.getElementById('sum_attivo_coll').textContent +
-            ' · Associate ' + document.getElementById('sum_attivo_assoc').textContent +
-            ' · Totale ' + document.getElementById('sum_attivo_tot').textContent);
-    addLine('Fatturato: Base ' + document.getElementById('sum_fatt_base').textContent +
-            ' · Collegate ' + document.getElementById('sum_fatt_coll').textContent +
-            ' · Associate ' + document.getElementById('sum_fatt_assoc').textContent +
-            ' · Totale ' + document.getElementById('sum_fatt_tot').textContent);
-    addLine('ULA: Base ' + document.getElementById('sum_ula_base').textContent +
-            ' · Collegate ' + document.getElementById('sum_ula_coll').textContent +
-            ' · Associate ' + document.getElementById('sum_ula_assoc').textContent +
-            ' · Totale ' + document.getElementById('sum_ula_tot').textContent);
-
-    // Dimensione
-    addGap(10);
-    doc.setFont('helvetica','bold'); doc.setFontSize(14);
-    addLine('Dimensione d’impresa: ' + (document.getElementById('badge').textContent || '—'), true);
-
-    doc.save('dimensione-impresa.pdf');
-  }
+  addGap(8); addLine('Riepilogo', true);
+  addLine('Totale attivo: Base '+document.getElementById('sum_attivo_base').textContent+' · Collegate '+document.getElementById('sum_attivo_coll').textContent+' · Associate '+document.getElementById('sum_attivo_assoc').textContent+' · Totale '+document.getElementById('sum_attivo_tot').textContent);
+  addLine('Fatturato: Base '+document.getElementById('sum_fatt_base').textContent+' · Collegate '+document.getElementById('sum_fatt_coll').textContent+' · Associate '+document.getElementById('sum_fatt_assoc').textContent+' · Totale '+document.getElementById('sum_fatt_tot').textContent);
+  addLine('ULA: Base '+document.getElementById('sum_ula_base').textContent+' · Collegate '+document.getElementById('sum_ula_coll').textContent+' · Associate '+document.getElementById('sum_ula_assoc').textContent+' · Totale '+document.getElementById('sum_ula_tot').textContent);
+  addGap(10); doc.setFontSize(14); addLine('Dimensione d’impresa: '+(document.getElementById('badge').textContent||'—'), true);
+  doc.save('dimensione-impresa.pdf');
+}
 </script>
 </body>
 </html>
