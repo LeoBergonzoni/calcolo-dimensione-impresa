@@ -21,7 +21,7 @@
     .inline{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     .actions{display:flex;gap:10px;flex-wrap:wrap}
     button{border:1px solid var(--line);background:var(--brand);color:#fff;padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:700}
-    button.secondary{background:#fff;color:var(--ink)} button.ghost{background:transparent;border-color:var(--line);color:var(--ink)}
+    button.secondary{background:#fff;color:#1f2937} button.ghost{background:transparent;border-color:var(--line);color:#1f2937}
     button.tiny{padding:6px 10px;font-size:13px}
     .tiny{font-size:12px;color:var(--muted)} .muted{color:var(--muted)}
     .table-wrap{border:1px solid var(--line);border-radius:12px;overflow-x:auto;background:#fff}
@@ -34,6 +34,9 @@
     .list{display:flex;flex-direction:column;gap:12px}
     .kicker{font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-size:12px}
     .grid-3{display:grid;grid-template-columns:2fr 1fr 1fr;gap:10px}
+    .chips{display:flex;gap:8px;flex-wrap:wrap}
+    .chip{background:#eef2f7;border:1px solid var(--line);border-radius:999px;padding:6px 10px}
+    .warn{background:#fff7ed;border-left:3px solid #fb923c;padding:8px;border-radius:8px}
     @media (max-width:700px){.grid-3{grid-template-columns:1fr}}
     @media (max-width:480px){.actions{flex-direction:column}.actions button{width:100%} th,td{padding:6px;font-size:13px}}
   </style>
@@ -48,11 +51,14 @@
   <!-- Impresa principale -->
   <section class="card">
     <h2 class="section-title">Dati impresa <span class="emoji">🧾</span></h2>
+
     <div class="row">
       <div><label>Ragione sociale</label><input id="main_ragione" type="text" placeholder="Es. Alfa S.r.l."></div>
       <div><label>Codice fiscale</label><input id="main_cf" type="text" placeholder="XXXXXXXXXXXX"></div>
+
       <div><label>Totale attivo (EUR)</label><input id="main_attivo" type="number" min="0" step="0.01" placeholder="0"></div>
       <div><label>Fatturato (EUR)</label><input id="main_fatturato" type="number" min="0" step="0.01" placeholder="0"></div>
+
       <div>
         <label>ULA</label>
         <input id="main_ula" type="number" min="0" step="0.01" placeholder="0">
@@ -61,22 +67,109 @@
           <a href="ula.html" style="margin-left:6px">Vedi qui la normativa per il calcolo esatto</a>.
         </p>
       </div>
+
+      <div>
+        <label>Forma giuridica</label>
+        <select id="main_forma">
+          <option value="">— Seleziona —</option>
+          <option value="capitali">Società di capitali</option>
+          <option value="persone">Società di persone</option>
+        </select>
+        <p class="tiny muted">Autocompilata dalla Visura ove possibile. Influenza i documenti integrativi richiesti.</p>
+      </div>
     </div>
 
     <div class="divider"></div>
 
+    <!-- Caricamenti documenti principali -->
     <div class="row">
       <div>
         <label>Carica visura (PDF)</label>
         <input id="file_visura" type="file" accept="application/pdf" />
-        <p class="tiny">Auto-compila <strong>Ragione sociale</strong> e <strong>Codice fiscale</strong>.</p>
+        <p class="tiny">Auto-compila <strong>Ragione sociale</strong>, <strong>Codice fiscale</strong>, <strong>Forma giuridica</strong>, <strong>Ateco</strong> e <strong>Compagine</strong> ove presenti.</p>
       </div>
       <div>
         <label>Carica bilancio (PDF)</label>
         <input id="file_bilancio" type="file" accept="application/pdf" />
-        <p class="tiny">Carica <strong>l’ultimo bilancio approvato e depositato</strong>. Auto-compila <strong>Totale attivo</strong> e
-          <strong>Fatturato</strong> (= CE <strong>A)1) Ricavi vendite e prestazioni</strong>). *i documenti caricati vengono mantenuti solo per finalità di compilazione: non vengono caricati o mantenuti su nessuna piattaforma</p>
+        <p class="tiny">Carica l’ultimo bilancio approvato e depositato. Auto-compila <strong>Totale attivo</strong> e <strong>Fatturato</strong> (= CE <strong>A)1)</strong>).</p>
       </div>
+    </div>
+
+    <!-- Documenti integrativi per società di persone -->
+    <div id="wrap_persone" style="display:none">
+      <div class="divider"></div>
+      <div class="row">
+        <div>
+          <label>Ultima dichiarazione dei redditi depositata (PDF)</label>
+          <input id="file_redditi" type="file" accept="application/pdf" />
+          <p class="tiny">Estrae <strong>RS106</strong> (Totale attivo) e <strong>RS116</strong> (Fatturato).</p>
+        </div>
+        <div>
+          <label>Ultimo Modello IVA depositato (PDF)</label>
+          <input id="file_iva" type="file" accept="application/pdf" />
+          <p class="tiny">Estrae <strong>VE50</strong> (Volume d’affari → Fatturato).</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Codici ATECO -->
+    <div class="divider"></div>
+    <h3 class="section-title">Codici ATECO <span class="emoji">🏷️</span></h3>
+    <div class="tiny muted" style="margin-bottom:8px">Inserisci manualmente o compila da Visura. Puoi aggiungere più codici.</div>
+    <div id="ateco_list" class="list"></div>
+    <div class="actions"><button id="add_ateco" type="button" class="secondary">+ Aggiungi ATECO</button></div>
+  </section>
+
+  <!-- Compagine societaria -->
+  <section class="card">
+    <h2 class="section-title">Compagine societaria <span class="emoji">🧑‍⚖️</span></h2>
+    <div class="tiny muted" style="margin-bottom:8px">Soci (persone fisiche o giuridiche). Le quote devono sommare 100%.</div>
+    <div id="soci_list" class="list"></div>
+    <div class="actions">
+      <button id="add_socio" type="button" class="secondary">+ Aggiungi socio</button>
+      <span class="tiny" id="sum_quote_hint">Somma quote: 0%</span>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="list" id="majority_checks">
+      <div class="warn" id="maj_single" style="display:none">
+        È presente <strong>una persona fisica ≥ 51%</strong>. Detiene la maggioranza anche in un’altra società?
+        <div class="inline"><button class="ghost tiny" data-yes="single">Sì</button><button class="ghost tiny" data-no="single">No</button></div>
+      </div>
+      <div class="warn" id="maj_group" style="display:none">
+        <strong>Più persone fisiche congiuntamente ≥ 51%</strong>. Sono tra loro <em>parenti, coniugi o affini</em>?
+        <div class="inline"><button class="ghost tiny" data-kin="yes">Sì</button><button class="ghost tiny" data-kin="no">No</button></div>
+        <div id="maj_group_follow" style="display:none;margin-top:6px">
+          Con i legami considerati raggiungono la maggioranza. Detengono la maggioranza anche in un’altra società?
+          <div class="inline"><button class="ghost tiny" data-yes="group">Sì</button><button class="ghost tiny" data-no="group">No</button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Verifica collegamento -->
+  <section id="verifica_pf" class="card" style="display:none">
+    <h2 class="section-title">Verifica del collegamento per persona fisica <span class="emoji">🔗</span></h2>
+    <div class="tiny muted" style="margin-bottom:8px">Carica Visura o compila i dati della società da verificare.</div>
+
+    <div class="row">
+      <div><label>Ragione sociale</label><input id="pf_ragione" type="text" placeholder="Es. Delta S.r.l."></div>
+      <div><label>Codice fiscale</label><input id="pf_cf" type="text" placeholder="XXXXXXXXXXXX"></div>
+      <div><label>Codici ATECO (separati da virgola)</label><input id="pf_ateco" type="text" placeholder="es. 62.01.00, 62.02.00"></div>
+      <div>
+        <label>Carica visura (PDF)</label>
+        <input id="pf_visura" type="file" accept="application/pdf" />
+        <p class="tiny">Autocompila anagrafica e ATECO.</p>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div id="pf_esito" class="tiny"></div>
+    <div class="actions" id="pf_actions" style="display:none">
+      <button id="pf_add_collegata" type="button" class="secondary">➕ Inserisci tra le collegate</button>
+      <button id="pf_reset" type="button" class="ghost">Annulla</button>
     </div>
   </section>
 
@@ -143,11 +236,11 @@
 
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Voce</th><th>Base</th><th>Totale collegate</th><th>Totale associate</th><th>Totale</th><th>Check</th></tr></thead>
+        <thead><tr><th>Voce</th><th>Base</th><th>Totale collegate</th><th>Totale associate</th><th>Totale</th></tr></thead>
         <tbody>
-          <tr><td>Totale attivo</td><td id="sum_attivo_base">– €</td><td id="sum_attivo_coll">– €</td><td id="sum_attivo_assoc">– €</td><td id="sum_attivo_tot">– €</td><td id="sum_attivo_chk">– €</td></tr>
-          <tr><td>Fatturato</td><td id="sum_fatt_base">– €</td><td id="sum_fatt_coll">– €</td><td id="sum_fatt_assoc">– €</td><td id="sum_fatt_tot">– €</td><td id="sum_fatt_chk">– €</td></tr>
-          <tr><td>ULA</td><td id="sum_ula_base">0</td><td id="sum_ula_coll">0</td><td id="sum_ula_assoc">0</td><td id="sum_ula_tot">0</td><td id="sum_ula_chk">0</td></tr>
+          <tr><td>Totale attivo</td><td id="sum_attivo_base">– €</td><td id="sum_attivo_coll">– €</td><td id="sum_attivo_assoc">– €</td><td id="sum_attivo_tot">– €</td></tr>
+          <tr><td>Fatturato</td><td id="sum_fatt_base">– €</td><td id="sum_fatt_coll">– €</td><td id="sum_fatt_assoc">– €</td><td id="sum_fatt_tot">– €</td></tr>
+          <tr><td>ULA</td><td id="sum_ula_base">0</td><td id="sum_ula_coll">0</td><td id="sum_ula_assoc">0</td><td id="sum_ula_tot">0</td></tr>
         </tbody>
       </table>
     </div>
@@ -174,11 +267,13 @@ const fmtUla = new Intl.NumberFormat('it-IT',{minimumFractionDigits:0,maximumFra
 const clamp = (n,min,max)=>Math.min(Math.max(n,min),max);
 const val = id => document.getElementById(id).value.trim();
 const num = id => { const v=(document.getElementById(id).value||'').toString().replace(/\./g,'').replace(',', '.'); const n=parseFloat(v); return isNaN(n)?0:n; };
+const onlyDigits = s => (s||'').replace(/\D/g,'');
 
 /* ====== Upload client => serverless ====== */
 async function uploadAndExtractMain(file, kind){
   const fd = new FormData(); fd.append('file', file); fd.append('kind', kind||'generico');
-  const inputs=[document.getElementById('file_visura'), document.getElementById('file_bilancio')]; inputs.forEach(b=>b.disabled=true);
+  const inputs=[document.getElementById('file_visura'), document.getElementById('file_bilancio'), document.getElementById('file_redditi'), document.getElementById('file_iva')].filter(Boolean);
+  inputs.forEach(b=> b && (b.disabled=true));
   try{
     const res = await fetch('/.netlify/functions/extract',{method:'POST', body:fd});
     if(res.status===422) return alert('PDF scannerizzato senza testo: serve OCR.');
@@ -187,7 +282,7 @@ async function uploadAndExtractMain(file, kind){
     const ok = populateForm(json, kind);
     alert(ok?'Dati estratti e compilati!':'Nessun dato utile estratto dal PDF.');
   }catch(e){ console.error(e); alert('Impossibile estrarre i dati dal PDF.'); }
-  finally{ inputs.forEach(b=>b.disabled=false); }
+  finally{ inputs.forEach(b=> b && (b.disabled=false)); }
 }
 
 /* Upload per una singola card (collegata/associata) */
@@ -205,7 +300,42 @@ async function uploadAndExtractForCard(card, file, kind){
   finally{ inputs.forEach(b=>b.disabled=false); }
 }
 
-/* ====== Compilazione ====== */
+/* ====== UI builders ====== */
+function atecoItem(value=''){
+  const wrap=document.createElement('div');
+  wrap.className='inline';
+  wrap.innerHTML = `<input type="text" class="ateco" placeholder="es. 62.01.00" value="${value}"> <button type="button" class="ghost tiny remove">–</button>`;
+  wrap.querySelector('.remove').onclick = ()=> wrap.remove();
+  return wrap;
+}
+function addAteco(value=''){ document.getElementById('ateco_list').appendChild(atecoItem(value)); }
+document.getElementById('add_ateco').onclick = ()=> addAteco();
+
+/* Soci */
+function socioItem(data={}){
+  const wrap=document.createElement('div'); wrap.className='card';
+  wrap.innerHTML=`
+    <div class="row">
+      <div><label>Nome / Denominazione</label><input class="s_nome" type="text" value="${data.nome||''}" placeholder="Mario Rossi / Beta S.r.l."></div>
+      <div><label>Codice fiscale</label><input class="s_cf" type="text" value="${data.cf||''}" placeholder="XXXXXXXXXXXX"></div>
+      <div>
+        <label>Tipo soggetto</label>
+        <select class="s_tipo">
+          <option value="fisica" ${data.tipo==='fisica'?'selected':''}>Persona fisica</option>
+          <option value="giuridica" ${data.tipo==='giuridica'?'selected':''}>Persona giuridica</option>
+        </select>
+      </div>
+      <div><label>Quota %</label><input class="s_quota" type="number" min="0" max="100" step="0.01" value="${data.quota??''}" placeholder="0"></div>
+    </div>
+    <div class="actions"><button type="button" class="ghost tiny remove">– Rimuovi socio</button></div>`;
+  wrap.querySelector('.remove').onclick=()=>{ wrap.remove(); recomputeQuote(); };
+  wrap.querySelectorAll('input,select').forEach(i=> i.addEventListener('input', recomputeQuote));
+  return wrap;
+}
+function addSocio(data={}){ document.getElementById('soci_list').appendChild(socioItem(data)); recomputeQuote(); }
+document.getElementById('add_socio').onclick=()=> addSocio();
+
+/* ====== Compilazione da extract ====== */
 function populateForm(data, kind){
   if(!data || typeof data!=='object') return false;
   let filled=false;
@@ -214,9 +344,29 @@ function populateForm(data, kind){
   if(kind==='visura'){
     if(data.ragioneSociale){ document.getElementById('main_ragione').value = data.ragioneSociale.trim(); filled=true; }
     if(data.codiceFiscale){ document.getElementById('main_cf').value = data.codiceFiscale.trim(); filled=true; }
+    if(data.formaGiuridicaTipo){
+      document.getElementById('main_forma').value = data.formaGiuridicaTipo;
+      togglePersone();
+      filled=true;
+    }
+    if(Array.isArray(data.atecoCodes) && data.atecoCodes.length){
+      const list=document.getElementById('ateco_list'); list.innerHTML='';
+      data.atecoCodes.forEach(c=> addAteco(c));
+      filled=true;
+    }
+    if(Array.isArray(data.soci) && data.soci.length){
+      const list=document.getElementById('soci_list'); list.innerHTML='';
+      data.soci.forEach(s=> addSocio(s));
+      filled=true;
+    }
   }else if(kind==='bilancio'){
     const att=cleanNum(data.attivo); if(att!=null){ document.getElementById('main_attivo').value = att; filled=true; }
     const fat=cleanNum(data.fatturato); if(fat!=null){ document.getElementById('main_fatturato').value = fat; filled=true; }
+  }else if(kind==='redditi'){
+    const att=cleanNum(data.rs106_attivo); if(att!=null){ document.getElementById('main_attivo').value = att; filled=true; }
+    const fat=cleanNum(data.rs116_fatturato); if(fat!=null){ document.getElementById('main_fatturato').value = fat; filled=true; }
+  }else if(kind==='iva'){
+    const fat=cleanNum(data.ve50_volume); if(fat!=null){ document.getElementById('main_fatturato').value = fat; filled=true; }
   }else{
     if(data.ragioneSociale){ document.getElementById('main_ragione').value = data.ragioneSociale.trim(); filled=true; }
     if(data.codiceFiscale){ document.getElementById('main_cf').value = data.codiceFiscale.trim(); filled=true; }
@@ -376,9 +526,15 @@ document.querySelectorAll('input[name="has_collegate"]').forEach(r=>{
 document.querySelectorAll('input[name="has_associate"]').forEach(r=>{
   r.addEventListener('change',()=>{ const show = r.value==='si' && r.checked; document.getElementById('associate_wrap').style.display = show?'block':'none'; })
 });
-
 document.getElementById('add_collegata').onclick = addCollegata;
 document.getElementById('add_associata').onclick = addAssociata;
+
+/* ====== Forma giuridica → toggle documenti persone ====== */
+function togglePersone(){
+  const v = document.getElementById('main_forma').value;
+  document.getElementById('wrap_persone').style.display = v==='persone' ? 'block' : 'none';
+}
+document.getElementById('main_forma').addEventListener('change', togglePersone);
 
 /* ====== Somme & calcolo ====== */
 function sumCollegate(){
@@ -408,13 +564,11 @@ function setSummaryRow(key, base, coll, assoc){
     document.getElementById('sum_ula_coll').textContent = fmtUla.format(coll);
     document.getElementById('sum_ula_assoc').textContent = fmtUla.format(assoc);
     document.getElementById('sum_ula_tot').textContent = fmtUla.format(tot);
-    document.getElementById('sum_ula_chk').textContent = fmtUla.format(tot);
   }else{
     document.getElementById(`sum_${key}_base`).textContent = fmtEUR.format(base);
     document.getElementById(`sum_${key}_coll`).textContent = fmtEUR.format(coll);
     document.getElementById(`sum_${key}_assoc`).textContent = fmtEUR.format(assoc);
     document.getElementById(`sum_${key}_tot`).textContent = fmtEUR.format(tot);
-    document.getElementById(`sum_${key}_chk`).textContent = fmtEUR.format(tot);
   }
   return tot;
 }
@@ -441,11 +595,64 @@ function onCalculate(){
 document.getElementById('calc_btn').onclick = onCalculate;
 document.getElementById('reset_btn').onclick = ()=>window.location.reload();
 
-/* Upload (impresa principale) */
+/* ====== Maggioranze & logiche PF ====== */
+function recomputeQuote(){
+  const list = document.getElementById('soci_list').querySelectorAll('.card');
+  let somma=0;
+  const fisiche=[];
+  list.forEach(card=>{
+    const quota = parseFloat(card.querySelector('.s_quota').value||'0')||0;
+    somma += quota;
+    const tipo = card.querySelector('.s_tipo').value;
+    if(tipo==='fisica'){
+      fisiche.push({ quota, nome: card.querySelector('.s_nome').value.trim() });
+    }
+  });
+  document.getElementById('sum_quote_hint').textContent = 'Somma quote: '+(Math.round(somma*100)/100)+'%';
+  // logiche maggioranza
+  const single = fisiche.find(f=> f.quota>=51);
+  const totFisiche = fisiche.reduce((a,b)=>a+b.quota,0);
+  document.getElementById('maj_single').style.display = single ? 'block' : 'none';
+  document.getElementById('maj_group').style.display = (!single && totFisiche>=51) ? 'block' : 'none';
+}
+document.getElementById('soci_list').addEventListener('input', recomputeQuote);
+
+/* Bottoni maggioranza */
+document.querySelectorAll('#maj_single [data-yes], #maj_single [data-no]').forEach(b=>{
+  b.onclick = (e)=>{ if(e.target.dataset.yes==='single') openVerificaPF(); else closeVerificaPF(); };
+});
+document.querySelectorAll('#maj_group [data-kin]').forEach(b=>{
+  b.onclick = (e)=>{ document.getElementById('maj_group_follow').style.display = e.target.dataset.kin==='yes' ? 'block' : 'none'; };
+});
+document.querySelectorAll('#maj_group_follow [data-yes], #maj_group_follow [data-no]').forEach(b=>{
+  b.onclick = (e)=>{ if(e.target.dataset.yes==='group') openVerificaPF(); else closeVerificaPF(); };
+});
+
+function openVerificaPF(){ document.getElementById('verifica_pf').style.display='block'; }
+function closeVerificaPF(){ document.getElementById('verifica_pf').style.display='none'; }
+
+/* Verifica PF: upload visura e controlli */
+document.getElementById('pf_visura').addEventListener('change', async (e)=>{
+  const f=e.target.files?.[0]; if(!f) return;
+  const fd = new FormData(); fd.append('file', f); fd.append('kind', 'visura');
+  const res = await fetch('/.netlify/functions/extract',{method:'POST', body:fd});
+  if(!res.ok) return alert('Impossibile leggere la visura.');
+  const j = await res.json();
+  if(j.ragioneSociale) document.getElementById('pf_ragione').value = j.ragioneSociale;
+  if(j.codiceFiscale) document.getElementById('pf_cf').value = j.codiceFiscale;
+  if(Array.isArray(j.atecoCodes) && j.atecoCodes.length){
+    document.getElementById('pf_ateco').value = j.atecoCodes.join(', ');
+  }
+  verificaCollegamentoPF();
+});
+
+/* ====== Upload (impresa principale) ====== */
 document.getElementById('file_visura').addEventListener('change',e=>{ const f=e.target.files?.[0]; if(f) uploadAndExtractMain(f,'visura'); });
 document.getElementById('file_bilancio').addEventListener('change',e=>{ const f=e.target.files?.[0]; if(f) uploadAndExtractMain(f,'bilancio'); });
+document.getElementById('file_redditi')?.addEventListener('change',e=>{ const f=e.target.files?.[0]; if(f) uploadAndExtractMain(f,'redditi'); });
+document.getElementById('file_iva')?.addEventListener('change',e=>{ const f=e.target.files?.[0]; if(f) uploadAndExtractMain(f,'iva'); });
 
-/* ====== Report PDF (come prima) ====== */
+/* ====== Report PDF ====== */
 document.getElementById('download_pdf').addEventListener('click', downloadReport);
 function collectCompanies(scope){
   const out=[]; scope.querySelectorAll('.card').forEach(c=>{
@@ -471,6 +678,9 @@ function downloadReport(){
   doc.setFont('helvetica','normal');
   addLine('Ragione sociale: '+(val('main_ragione')||'-'));
   addLine('Codice fiscale: '+(val('main_cf')||'-'));
+  addLine('Forma giuridica: '+(document.getElementById('main_forma').selectedOptions[0]?.text||'-'));
+  const atecos = Array.from(document.querySelectorAll('#ateco_list .ateco')).map(i=>i.value.trim()).filter(Boolean);
+  addLine('Ateco: '+(atecos.join(', ')||'-'));
   addLine('Totale attivo: '+(document.getElementById('sum_attivo_base').textContent||'-'));
   addLine('Fatturato: '+(document.getElementById('sum_fatt_base').textContent||'-'));
   addLine('ULA: '+(document.getElementById('sum_ula_base').textContent||'0'));
@@ -490,6 +700,52 @@ function downloadReport(){
   addGap(10); doc.setFontSize(14); addLine('Dimensione d’impresa: '+(document.getElementById('badge').textContent||'—'), true);
   doc.save('dimensione-impresa.pdf');
 }
+
+/* ====== Verifica collegamento PF: logica ====== */
+function getMainAtecoPrefixes(){
+  const codes = Array.from(document.querySelectorAll('#ateco_list .ateco')).map(i=>i.value.trim()).filter(Boolean);
+  return codes.map(c=> c.replace(/[^\d]/g,'')).filter(s=>s.length>=2).map(s=> s.slice(0,2));
+}
+function parseAtecoInput(s){
+  return (s||'').split(',').map(x=>x.trim()).filter(Boolean).map(c=> c.replace(/[^\d]/g,'')).filter(t=>t.length>=2);
+}
+function verificaCollegamentoPF(){
+  const mainPref = getMainAtecoPrefixes();
+  const other = parseAtecoInput(document.getElementById('pf_ateco').value);
+  const otherPref = other.map(s=>s.slice(0,2));
+  const esito = document.getElementById('pf_esito');
+  const actions = document.getElementById('pf_actions');
+
+  const sameSector = mainPref.some(p=> otherPref.includes(p));
+  if(sameSector){
+    esito.innerHTML = 'Le prime due cifre dei codici ATECO coincidono: <strong>collegamento perfezionato</strong>.';
+    actions.style.display='flex';
+    return;
+  }
+  esito.innerHTML = `Le prime due cifre ATECO <em>non</em> coincidono. La società fattura all’altra almeno il 25% del totale fatturato annuo (ultimo esercizio)? 
+    <div class="inline" style="margin-top:6px"><button id="pf_25_yes" class="ghost tiny">Sì</button><button id="pf_25_no" class="ghost tiny">No</button></div>`;
+  actions.style.display='none';
+  document.getElementById('pf_25_yes').onclick=()=>{ esito.innerHTML='<strong>Collegamento perfezionato</strong> per fatturazioni ≥25%.'; actions.style.display='flex'; };
+  document.getElementById('pf_25_no').onclick=()=>{ esito.innerHTML='Condizioni non soddisfatte. Verifica interrotta.'; actions.style.display='none'; };
+}
+document.getElementById('pf_ragione').addEventListener('input', ()=>{ /* noop */ });
+document.getElementById('pf_cf').addEventListener('input', ()=>{ /* noop */ });
+document.getElementById('pf_ateco').addEventListener('input', verificaCollegamentoPF);
+
+document.getElementById('pf_add_collegata').onclick=()=>{
+  // crea card collegata precompilata
+  const count = collegateList.children.length;
+  const wrap = document.createElement('div'); wrap.innerHTML = collegataTemplate(count);
+  const card = wrap.firstElementChild; collegateList.appendChild(card);
+  bindRemove(collegateList); bindCompanyUploads(card);
+  card.querySelector('.ragione').value = document.getElementById('pf_ragione').value.trim();
+  card.querySelector('.cf').value = document.getElementById('pf_cf').value.trim();
+  alert('Società aggiunta tra le collegate.');
+};
+document.getElementById('pf_reset').onclick=()=>{ document.getElementById('pf_ragione').value=''; document.getElementById('pf_cf').value=''; document.getElementById('pf_ateco').value=''; document.getElementById('pf_esito').innerHTML=''; document.getElementById('pf_actions').style.display='none'; };
+
+/* ====== Autocompilazione flussi addizionali ====== */
+document.getElementById('main_forma').addEventListener('change', togglePersone);
 </script>
 </body>
 </html>
